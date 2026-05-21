@@ -101,6 +101,7 @@ export default function ShareNearbyPage() {
         data: tokenOrUrl,
       });
       setNotificationSuccess("Berhasil dikirim ke notifikasi teman.");
+      window.dispatchEvent(new Event('refetch-notifications'));
       setTimeout(() => setNotificationSuccess(""), 5000);
       setFriendEmail("");
       setSelectedFriend(null);
