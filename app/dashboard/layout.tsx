@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { FileText, Users, LogOut, UploadCloud, Shield, LayoutDashboard } from 'lucide-react';
 import { api } from '@/src/lib/api';
+import { NotificationDropdown } from '@/src/components/NotificationDropdown';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -92,13 +93,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <h1 className="text-xl font-semibold text-white">
             {navItems.find(item => item.href === pathname)?.name || 'Dasbor'}
           </h1>
-          <Link 
-            href="/dashboard/upload" 
-            className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-          >
-            <UploadCloud className="mr-2 h-4 w-4" />
-            Unggah File
-          </Link>
+          <div className="flex items-center space-x-4">
+            <NotificationDropdown />
+            <Link 
+              href="/dashboard/upload" 
+              className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              <UploadCloud className="mr-2 h-4 w-4" />
+              Unggah File
+            </Link>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-8">
           {children}

@@ -40,6 +40,12 @@ export default function ShareNearbyPage() {
   const [receivedFile, setReceivedFile] = useState<string | null>(null);
   const [receivedName, setReceivedName] = useState<string>("");
 
+  const [friendEmail, setFriendEmail] = useState("");
+  const [searchResults, setSearchResults] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [selectedFriend, setSelectedFriend] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [sendingNotification, setSendingNotification] = useState(false);
+  const [notificationSuccess, setNotificationSuccess] = useState("");
+
   const clientId = useMemo(() => uuidv4(), []);
   const peerRef = useRef<any>(null);
 
@@ -58,6 +64,54 @@ export default function ShareNearbyPage() {
       peerRef.current?.destroy();
     };
   }, []);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (friendEmail.trim().length > 2 && !selectedFriend) {
+        try {
+          const res = await api.get(`/users/search?email=${encodeURIComponent(friendEmail)}`);
+          setSearchResults(res.data.data);
+        } catch (error) {
+          console.error("Search failed", error);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [friendEmail, selectedFriend]);
+
+  const sendCodeViaNotification = async () => {
+    if (!friendEmail.trim() && !selectedFriend) return;
+    const tokenOrUrl = shareMode === 'qr' ? shareUrl : sessionId;
+    if (!tokenOrUrl) return;
+
+    setSendingNotification(true);
+    setNotificationSuccess("");
+    try {
+      await api.post("/notifications", {
+        targetUserId: selectedFriend?.id,
+        email: !selectedFriend ? friendEmail.trim() : undefined,
+        title: "File Baru Dibagikan",
+        message: shareMode === 'qr' 
+          ? "Teman Anda membagikan file melalui Temporary Share. Salin kode ini dan masukkan ke 'Terima via Kode'."
+          : "Teman Anda membagikan file via WebRTC Peer-to-Peer. Salin Session ID ini dan masukkan ke 'Terima via Kode'.",
+        type: "SHARE_CODE",
+        data: tokenOrUrl,
+      });
+      setNotificationSuccess("Berhasil dikirim ke notifikasi teman.");
+      setTimeout(() => setNotificationSuccess(""), 5000);
+      setFriendEmail("");
+      setSelectedFriend(null);
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string } } };
+      setErrors(axiosError.response?.data?.message || "Gagal mengirim notifikasi.");
+      setTimeout(() => setErrors(""), 5000);
+    } finally {
+      setSendingNotification(false);
+    }
+  };
 
   const selectedDoc = useMemo(
     () => documents.find((doc) => doc.id === selectedId) ?? null,
@@ -475,6 +529,78 @@ export default function ShareNearbyPage() {
                   </p>
                   <p>Progress transfer: {transferProgress}%</p>
                 </div>
+              </div>
+            )}
+
+            {(shareUrl || sessionId) && (
+              <div className="mt-8 border-t border-slate-800 pt-6 space-y-4">
+                <h3 className="text-sm font-medium text-white">Kirim Kode ke Teman</h3>
+                <p className="text-xs text-slate-400">
+                  Kirimkan tautan atau kode ini langsung ke notifikasi teman Anda.
+                </p>
+                <div className="relative">
+                  <Input
+                    label="Email Teman"
+                    type="email"
+                    value={friendEmail}
+                    onChange={(e) => {
+                      setFriendEmail(e.target.value);
+                      if (selectedFriend) setSelectedFriend(null);
+                    }}
+                    placeholder="Ketik email teman..."
+                  />
+                  {searchResults.length > 0 && !selectedFriend && (
+                    <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                      {searchResults.map((user) => (
+                        <div
+                          key={user.id}
+                          className="px-4 py-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700/50 last:border-0"
+                          onClick={() => {
+                            setSelectedFriend(user);
+                            setFriendEmail(user.email);
+                            setSearchResults([]);
+                          }}
+                        >
+                          <p className="text-sm font-medium text-white">{user.name}</p>
+                          <p className="text-xs text-slate-400">{user.email}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {selectedFriend && (
+                  <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-blue-400">{selectedFriend.name}</p>
+                      <p className="text-xs text-blue-400/70">{selectedFriend.email}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedFriend(null);
+                        setFriendEmail("");
+                      }}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
+                {notificationSuccess && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm rounded-lg">
+                    {notificationSuccess}
+                  </div>
+                )}
+
+                <Button
+                  className="w-full"
+                  disabled={!friendEmail.trim()}
+                  isLoading={sendingNotification}
+                  onClick={sendCodeViaNotification}
+                >
+                  Kirim via Notifikasi
+                </Button>
               </div>
             )}
 

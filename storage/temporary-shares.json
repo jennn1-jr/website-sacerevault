@@ -30,18 +30,18 @@
     "authTag": "FKkQlvtRTREG7297EfWCEQ=="
   },
   {
-    "token": "d3bd7a82a5438b219b94c7e1c3620e3e",
-    "documentId": "a5810af8-02e3-47b5-96bc-3bee6ace9775",
+    "token": "721e96209d76f731ed5467a7413f7a45",
+    "documentId": "1c9ec7ca-08f8-4995-b90d-64e1000251ac",
     "ownerId": "1daa6b46-c998-4ae7-b937-76622e302a97",
-    "mimeType": "application/pdf",
-    "originalName": "bintang.pdf",
-    "expiresAt": "2026-05-21T05:14:39.614Z",
-    "createdAt": "2026-05-21T04:44:39.615Z",
+    "mimeType": "image/png",
+    "originalName": "Screenshot 2026-05-21 at 09.19.55.png",
+    "expiresAt": "2026-05-21T07:30:54.082Z",
+    "createdAt": "2026-05-21T07:00:54.082Z",
     "maxAccess": 5,
     "accessCount": 0,
     "isActive": true,
-    "encryptedAesKey": "S5t+qBsh5TPFsDKRz2tsLJaKq+5lFQVwJZcIjSmgOZY=",
-    "iv": "a4g86iHdbZ1xmd1U",
-    "authTag": "TqFmsJ2bAywsx37XN+YdxQ=="
+    "encryptedAesKey": "zIYMaik5Hi8ax9w9eXhvl1Sxu/+JMX9VSDPWnMhx9tw=",
+    "iv": "qzxQtUIvSpNno+N1",
+    "authTag": "Bvbaox4AOQOYEGoQxoPzqA=="
   }
 ]
