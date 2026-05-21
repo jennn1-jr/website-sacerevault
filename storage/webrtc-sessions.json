@@ -1,0 +1,21 @@
+[
+  {
+    "sessionId": "9db608298ac142c68617fa02",
+    "createdBy": "share-nearby",
+    "createdAt": "2026-05-21T02:22:13.502Z",
+    "expiresAt": "2026-05-21T02:52:13.502Z",
+    "isActive": true,
+    "signals": [
+      {
+        "id": "212f3c9b-5451-4731-b70b-b92d63098f20",
+        "from": "5e663c76-9c70-4848-b8c3-3613959ea8d7",
+        "payload": {
+          "type": "offer",
+          "sdp": "v=0\r\no=- 8943050327398929252 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0\r\na=extmap-allow-mixed\r\na=msid-semantic: WMS\r\nm=application 42741 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 104.28.159.49\r\na=candidate:2089141147 1 udp 2113937151 16a4e428-f0c9-4b2c-80db-e897c89eaff0.local 50261 typ host generation 0 network-cost 999\r\na=candidate:124830440 1 udp 2113939711 13e65fc9-d15d-4ad7-8e2a-23056072af38.local 64911 typ host generation 0 network-cost 999\r\na=candidate:4266927612 1 udp 1677729535 104.28.159.49 42741 typ srflx raddr 0.0.0.0 rport 0 generation 0 network-cost 999\r\na=candidate:4266927612 1 udp 1677729535 104.28.159.49 43839 typ srflx raddr 0.0.0.0 rport 0 generation 0 network-cost 999\r\na=candidate:2353453327 1 udp 1677732095 2a09:bac5:55f9:18c8::278:ba 54457 typ srflx raddr :: rport 0 generation 0 network-cost 999\r\na=ice-ufrag:k8BR\r\na=ice-pwd:QhVvdzbds56/kUim261fjY0K\r\na=fingerprint:sha-256 8F:DA:8C:D4:4A:3B:73:FA:95:26:A7:36:C4:A9:5B:BC:4C:30:DC:BC:F9:4C:27:BE:C0:94:56:4B:D3:98:A4:A4\r\na=setup:actpass\r\na=mid:0\r\na=sctp-port:5000\r\na=max-message-size:262144\r\n"
+        },
+        "delivered": false,
+        "createdAt": "2026-05-21T02:22:14.401Z"
+      }
+    ]
+  }
+]

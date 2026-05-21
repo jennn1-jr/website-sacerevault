@@ -1,0 +1,47 @@
+[
+  {
+    "token": "qwert",
+    "documentId": "119b7bbb-928d-43af-90e7-ebf26d027c3e",
+    "ownerId": "1daa6b46-c998-4ae7-b937-76622e302a97",
+    "mimeType": "application/pdf",
+    "originalName": "dokumen follow himakimia.pdf",
+    "expiresAt": "2026-05-22T03:03:20.052Z",
+    "createdAt": "2026-05-21T03:03:20.052Z",
+    "maxAccess": 100,
+    "accessCount": 0,
+    "isActive": true,
+    "encryptedAesKey": "lpjfJYO0as3b/mbxPWaYMjrWAgL5dSxPUqnzwejrPCM=",
+    "iv": "wcuj7q/P5QWpqZS3",
+    "authTag": "mnRd8vGxydtcD3Ba6NCpXQ=="
+  },
+  {
+    "token": "123456",
+    "documentId": "a5810af8-02e3-47b5-96bc-3bee6ace9775",
+    "ownerId": "1daa6b46-c998-4ae7-b937-76622e302a97",
+    "mimeType": "application/pdf",
+    "originalName": "bintang.pdf",
+    "expiresAt": "2026-05-22T03:30:21.282Z",
+    "createdAt": "2026-05-21T03:30:21.282Z",
+    "maxAccess": 100,
+    "accessCount": 0,
+    "isActive": true,
+    "encryptedAesKey": "WQ8n+WQ+Im4EBpR6Iljkhh70oJpbjJJI/IVC2ygH/hE=",
+    "iv": "t3KnOcPt5CHg4Uhk",
+    "authTag": "FKkQlvtRTREG7297EfWCEQ=="
+  },
+  {
+    "token": "d3bd7a82a5438b219b94c7e1c3620e3e",
+    "documentId": "a5810af8-02e3-47b5-96bc-3bee6ace9775",
+    "ownerId": "1daa6b46-c998-4ae7-b937-76622e302a97",
+    "mimeType": "application/pdf",
+    "originalName": "bintang.pdf",
+    "expiresAt": "2026-05-21T05:14:39.614Z",
+    "createdAt": "2026-05-21T04:44:39.615Z",
+    "maxAccess": 5,
+    "accessCount": 0,
+    "isActive": true,
+    "encryptedAesKey": "S5t+qBsh5TPFsDKRz2tsLJaKq+5lFQVwJZcIjSmgOZY=",
+    "iv": "a4g86iHdbZ1xmd1U",
+    "authTag": "TqFmsJ2bAywsx37XN+YdxQ=="
+  }
+]

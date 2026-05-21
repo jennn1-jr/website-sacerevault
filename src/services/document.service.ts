@@ -1,0 +1,289 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { prisma } from '../prisma';
+import { 
+  generateFileKey, 
+  encryptFileData, 
+  decryptFileData, 
+  hashFile, 
+  signHash, 
+  verifySignature, 
+  encryptKeyWithRSA, 
+  decryptKeyWithRSA,
+  decryptPrivateKey
+} from '../crypto';
+import { createTemporaryShare } from '../lib/temporaryShareStore';
+
+const STORAGE_DIR = path.join(process.cwd(), 'storage');
+
+async function ensureStorageDir() {
+  try {
+    await fs.mkdir(STORAGE_DIR, { recursive: true });
+  } catch (err) {
+    // ignore
+  }
+}
+
+interface DownloadDocumentResult {
+  buffer: Buffer;
+  mimeType: string;
+  originalName: string;
+}
+
+export class DocumentService {
+  static async uploadDocument(
+    userId: string,
+    vaultPassword: string,
+    file: File,
+    customShareCode?: string
+  ) {
+    await ensureStorageDir();
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+    // 1. Decrypt User's Private Key to sign the file
+    let privateKeyPEM: string;
+    try {
+      privateKeyPEM = decryptPrivateKey(user.encryptedPrivKey, vaultPassword);
+    } catch (error: unknown) {
+      console.error('Decryption error details:', error);
+      throw new Error('Invalid vault password provided for cryptographic signing');
+    }
+
+    // 2. Hash and Sign the original file
+    const fileHash = hashFile(fileBuffer);
+    const signature = signHash(fileHash, privateKeyPEM);
+
+    // 3. Generate AES Key and Encrypt File
+    const aesKey = generateFileKey();
+    const { encryptedBuffer, iv, tag } = encryptFileData(fileBuffer, aesKey);
+
+    // Prepare final binary format: IV (12 bytes) + Tag (16 bytes) + Encrypted Data
+    const finalEncryptedData = Buffer.concat([iv, tag, encryptedBuffer]);
+    
+    // Save to disk
+    const storagePath = path.join(STORAGE_DIR, `${Date.now()}-${file.name}.enc`);
+    await fs.writeFile(storagePath, finalEncryptedData);
+
+    // 4. Encrypt the AES Key with the User's own Public Key so they can decrypt it later
+    const encryptedFileKey = encryptKeyWithRSA(aesKey, user.publicKey);
+
+    // 5. Store metadata in DB
+    const document = await prisma.document.create({
+      data: {
+        title: file.name,
+        originalName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        size: BigInt(file.size),
+        storagePath,
+        fileHash,
+        signature,
+        ownerId: userId
+      }
+    });
+
+    // 6. Create initial SharedAccess record for the owner
+    await prisma.sharedAccess.create({
+      data: {
+        documentId: document.id,
+        userId: userId,
+        encryptedFileKey,
+        grantedBy: userId
+      }
+    });
+
+    if (customShareCode) {
+      await createTemporaryShare(
+        document.id,
+        userId,
+        document.mimeType,
+        document.originalName,
+        aesKey,
+        24 * 60, // 24 hours expiry
+        100, // max access
+        customShareCode
+      );
+    }
+
+    return {
+      id: document.id,
+      title: document.title,
+      createdAt: document.createdAt
+    };
+  }
+
+  static async downloadDocument(userId: string, vaultPassword: string, documentId: string): Promise<DownloadDocumentResult> {
+    // 1. Verify access
+    const access = await prisma.sharedAccess.findUnique({
+      where: { documentId_userId: { documentId, userId } },
+      include: { document: { include: { owner: true } }, user: true }
+    });
+
+    if (!access || access.document.status !== 'ACTIVE') {
+      throw new Error('Unauthorized or document not found');
+    }
+
+    const { document, user } = access;
+
+    // 2. Decrypt User's Private Key
+    let privateKeyPEM: string;
+    try {
+      privateKeyPEM = decryptPrivateKey(user.encryptedPrivKey, vaultPassword);
+    } catch (e) {
+      throw new Error('Invalid vault password provided for cryptographic decryption');
+    }
+
+    // 3. Decrypt the AES Key using User's Private Key
+    const aesKey = decryptKeyWithRSA(access.encryptedFileKey, privateKeyPEM);
+
+    // 4. Read encrypted file from disk
+    const fileData = await fs.readFile(document.storagePath);
+    const iv = fileData.subarray(0, 12);
+    const tag = fileData.subarray(12, 28);
+    const encryptedBuffer = fileData.subarray(28);
+
+    // 5. Decrypt the file
+    const originalFileBuffer = decryptFileData(encryptedBuffer, aesKey, iv, tag);
+
+    // 6. Verify Hash and Signature (Anti-tampering)
+    const currentHash = hashFile(originalFileBuffer);
+    if (currentHash !== document.fileHash) {
+      throw new Error('TAMPERING DETECTED: File hash mismatch');
+    }
+
+    const isValidSignature = verifySignature(currentHash, document.signature, document.owner.publicKey);
+    if (!isValidSignature) {
+      throw new Error('TAMPERING DETECTED: Invalid digital signature');
+    }
+
+    return {
+      buffer: originalFileBuffer,
+      mimeType: document.mimeType,
+      originalName: document.originalName
+    };
+  }
+
+  static async downloadDocumentWithAesKey(documentId: string, aesKey: Buffer): Promise<DownloadDocumentResult> {
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: { owner: true }
+    });
+
+    if (!document || document.status !== 'ACTIVE') {
+      throw new Error('Document not found');
+    }
+
+    const fileData = await fs.readFile(document.storagePath);
+    const iv = fileData.subarray(0, 12);
+    const tag = fileData.subarray(12, 28);
+    const encryptedBuffer = fileData.subarray(28);
+
+    const originalFileBuffer = decryptFileData(encryptedBuffer, aesKey, iv, tag);
+
+    const currentHash = hashFile(originalFileBuffer);
+    if (currentHash !== document.fileHash) {
+      throw new Error('TAMPERING DETECTED: File hash mismatch');
+    }
+
+    const isValidSignature = verifySignature(currentHash, document.signature, document.owner.publicKey);
+    if (!isValidSignature) {
+      throw new Error('TAMPERING DETECTED: Invalid digital signature');
+    }
+
+    return {
+      buffer: originalFileBuffer,
+      mimeType: document.mimeType,
+      originalName: document.originalName
+    };
+  }
+
+  static async shareDocument(
+    ownerId: string, 
+    ownerVaultPassword: string, 
+    documentId: string, 
+    targetUserEmail: string
+  ) {
+    const ownerAccess = await prisma.sharedAccess.findUnique({
+      where: { documentId_userId: { documentId, userId: ownerId } },
+      include: { user: true, document: true }
+    });
+
+    if (!ownerAccess || ownerAccess.document.status !== 'ACTIVE') {
+      throw new Error('You do not have access to share this document');
+    }
+
+    const targetUser = await prisma.user.findUnique({ where: { email: targetUserEmail } });
+    if (!targetUser) {
+      throw new Error('Target user not found');
+    }
+
+    // Check if already shared
+    const existingShare = await prisma.sharedAccess.findUnique({
+      where: { documentId_userId: { documentId, userId: targetUser.id } }
+    });
+    if (existingShare) {
+      throw new Error('Document already shared with this user');
+    }
+
+    // 1. Decrypt Owner's Private Key
+    let ownerPrivateKeyPEM: string;
+    try {
+      ownerPrivateKeyPEM = decryptPrivateKey(ownerAccess.user.encryptedPrivKey, ownerVaultPassword);
+    } catch (e) {
+      throw new Error('Invalid vault password provided for cryptographic operation');
+    }
+
+    // 2. Decrypt the AES Key
+    const aesKey = decryptKeyWithRSA(ownerAccess.encryptedFileKey, ownerPrivateKeyPEM);
+
+    // 3. Encrypt the AES Key with the Target User's Public Key
+    const newEncryptedFileKey = encryptKeyWithRSA(aesKey, targetUser.publicKey);
+
+    // 4. Save the new access record
+    await prisma.sharedAccess.create({
+      data: {
+        documentId,
+        userId: targetUser.id,
+        encryptedFileKey: newEncryptedFileKey,
+        grantedBy: ownerId
+      }
+    });
+
+    return { message: 'Document shared successfully' };
+  }
+
+  static async deleteDocument(userId: string, documentId: string) {
+    const document = await prisma.document.findUnique({ where: { id: documentId } });
+    if (!document || document.ownerId !== userId || document.status !== 'ACTIVE') {
+      throw new Error('Document not found or access denied');
+    }
+
+    try {
+      await fs.unlink(document.storagePath);
+    } catch (err) {
+      // ignore missing file errors, but still proceed with DB cleanup
+    }
+
+    await prisma.$transaction([
+      prisma.sharedAccess.deleteMany({ where: { documentId } }),
+      prisma.document.update({
+        where: { id: documentId },
+        data: { status: 'DELETED' }
+      })
+    ]);
+
+    await prisma.activityLog.create({
+      data: {
+        userId,
+        action: 'DELETE',
+        resourceId: documentId,
+        status: 'SUCCESS'
+      }
+    });
+
+    return { message: 'Document deleted successfully' };
+  }
+}
