@@ -215,7 +215,12 @@ export class DocumentService {
       throw new Error('You do not have access to share this document');
     }
 
-    const targetUser = await prisma.user.findUnique({ where: { email: targetUserEmail } });
+    // Case-insensitive user lookup to prevent sharing failures due to email case mismatch
+    const users = await prisma.user.findMany({
+      select: { id: true, email: true, publicKey: true }
+    });
+    const targetUser = users.find(u => u.email.trim().toLowerCase() === targetUserEmail.trim().toLowerCase());
+    
     if (!targetUser) {
       throw new Error('Target user not found');
     }

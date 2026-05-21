@@ -19,7 +19,11 @@ export class AuthService {
   static async register(data: RegisterPayload) {
     const { name, email, password, vaultPassword } = data;
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const emailLower = email.trim().toLowerCase();
+
+    const users = await prisma.user.findMany({ select: { email: true } });
+    const existingUser = users.find(u => u.email.trim().toLowerCase() === emailLower);
+
     if (existingUser) {
       throw new Error('Email already registered');
     }
@@ -54,7 +58,13 @@ export class AuthService {
   static async login(data: LoginPayload) {
     const { email, password } = data;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const emailLower = email.trim().toLowerCase();
+
+    const users = await prisma.user.findMany({
+      select: { id: true, email: true, passwordHash: true, role: true, name: true }
+    });
+    const user = users.find(u => u.email.trim().toLowerCase() === emailLower);
+
     if (!user) {
       throw new Error('Invalid credentials');
     }
