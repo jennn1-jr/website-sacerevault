@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   devIndicators: {
-    appIsrStatus: false, // Menghilangkan indikator prerender
-    buildActivity: false, // Menghilangkan indikator build (logo n/turbopack)
+    appIsrStatus: false,
+    buildActivity: false,
   },
 };
 
