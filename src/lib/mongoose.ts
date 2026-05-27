@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const MONGODB_URI = process.env.DATABASE_URL || process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  throw new Error('mongodb+srv://<username>:<password>@cluster0.xxxxxx.mongodb.net/securevault?retryWrites=true&w=majority');
+  console.warn('⚠️ MONGODB_URI or DATABASE_URL is not defined in environment variables. Database connections will fail.');
 }
 
 let cached = (global as any).mongoose;
@@ -18,6 +18,10 @@ export async function connectDB() {
   }
 
   if (!cached.promise) {
+    if (!MONGODB_URI) {
+      throw new Error('MONGODB_URI is not defined. Please define it in Vercel Environment Variables or .env.local');
+    }
+    
     const opts = {
       bufferCommands: false,
     };
