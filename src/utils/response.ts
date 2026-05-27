@@ -16,6 +16,11 @@ export function sendSuccess<T>(data: T, message: string = 'Success', status: num
 }
 
 export function sendError(message: string, error?: unknown, status: number = 500) {
+  if (error) {
+    console.error(`[API ERROR ${status}] ${message}:`, error);
+  } else {
+    console.error(`[API ERROR ${status}] ${message}`);
+  }
   return NextResponse.json<ApiResponse>({
     success: false,
     message,

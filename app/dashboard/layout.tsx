@@ -4,7 +4,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { FileText, Users, LogOut, UploadCloud, Shield, LayoutDashboard } from 'lucide-react';
+import { FileText, Users, LogOut, UploadCloud, Shield, LayoutDashboard, Edit3, Settings } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { NotificationDropdown } from '@/src/components/NotificationDropdown';
 
@@ -32,6 +32,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = [
     { name: 'Brankas Saya', href: '/dashboard', icon: FileText },
     { name: 'Dibagikan dengan Saya', href: '/dashboard/shared', icon: Users },
+    { name: 'Pengaturan Akun', href: '/dashboard/settings', icon: Settings },
   ];
 
   if (user.role === 'ADMIN') {
@@ -95,6 +96,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </h1>
           <div className="flex items-center space-x-4">
             <NotificationDropdown />
+            <Link 
+              href="/dashboard/notes/create" 
+              className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+            >
+              <Edit3 className="mr-2 h-4 w-4" />
+              Buat Catatan
+            </Link>
             <Link 
               href="/dashboard/upload" 
               className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"

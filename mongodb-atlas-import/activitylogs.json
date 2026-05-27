@@ -1,0 +1,38 @@
+[
+  {
+    "_id": "6a11bc4bc6a551b9ba33095e",
+    "userId": "6a11bc35c6a551b9ba33095c",
+    "action": "LOGIN",
+    "status": "SUCCESS",
+    "createdAt": "2026-05-23T14:40:11.799Z",
+    "updatedAt": "2026-05-23T14:40:11.799Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a139a7dcde778085cdfbd55",
+    "userId": "6a139a59cde778085cdfbd53",
+    "action": "LOGIN",
+    "status": "SUCCESS",
+    "createdAt": "2026-05-25T00:40:29.971Z",
+    "updatedAt": "2026-05-25T00:40:29.971Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a139b42cde778085cdfbd57",
+    "userId": "6a139a59cde778085cdfbd53",
+    "action": "LOGIN",
+    "status": "SUCCESS",
+    "createdAt": "2026-05-25T00:43:46.633Z",
+    "updatedAt": "2026-05-25T00:43:46.633Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a139c7dcde778085cdfbd59",
+    "userId": "6a139a59cde778085cdfbd53",
+    "action": "LOGIN",
+    "status": "SUCCESS",
+    "createdAt": "2026-05-25T00:49:01.034Z",
+    "updatedAt": "2026-05-25T00:49:01.034Z",
+    "__v": 0
+  }
+]

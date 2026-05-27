@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server';
 import { getSession } from '@/src/utils/auth';
 import { sendSuccess, sendError } from '@/src/utils/response';
-import { prisma } from '@/src/prisma';
+import { connectDB } from '@/src/lib/mongoose';
+import { User } from '@/src/models/User';
+import { Document as DocumentModel } from '@/src/models/Document';
+import { ActivityLog } from '@/src/models/ActivityLog';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,22 +13,23 @@ export async function GET(request: NextRequest) {
       return sendError('Unauthorized - Admin access required', null, 403);
     }
 
-    const totalUsers = await prisma.user.count();
-    const totalDocuments = await prisma.document.count({ where: { status: 'ACTIVE' } });
+    await connectDB();
+
+    const totalUsers = await User.countDocuments();
+    const totalDocuments = await DocumentModel.countDocuments({ status: 'ACTIVE' });
     
     // Calculate total size using aggregate
-    const sizeAggregate = await prisma.document.aggregate({
-      _sum: { size: true },
-      where: { status: 'ACTIVE' }
-    });
+    const sizeAggregate = await DocumentModel.aggregate([
+      { $match: { status: 'ACTIVE' } },
+      { $group: { _id: null, totalSize: { $sum: "$size" } } }
+    ]);
 
-    const totalSize = sizeAggregate._sum.size ? Number(sizeAggregate._sum.size) : 0;
+    const totalSize = sizeAggregate.length > 0 ? sizeAggregate[0].totalSize : 0;
 
-    const recentActivity = await prisma.activityLog.findMany({
-      take: 10,
-      orderBy: { createdAt: 'desc' },
-      include: { user: { select: { name: true, email: true } } }
-    });
+    const recentActivity = await ActivityLog.find({})
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('userId', 'name email');
 
     return sendSuccess({
       stats: {

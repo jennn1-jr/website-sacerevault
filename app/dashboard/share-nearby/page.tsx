@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/src/lib/api";
 import { QRCodeCanvas } from "qrcode.react";
-import SimplePeer from "simple-peer";
-import { v4 as uuidv4 } from "uuid";
-import { FileIcon, Share2, Wifi, Loader2, UploadCloud, File as FileLucideIcon, X } from "lucide-react";
+import { Share2, Wifi, UploadCloud, File as FileLucideIcon, X } from "lucide-react";
 import { Button } from "@/src/components/ui/Button";
 import { Input } from "@/src/components/ui/Input";
 
@@ -16,38 +14,23 @@ interface DocumentItem {
   size: number | string;
 }
 
-interface SignalItem {
-  id: string;
-  from: string;
-  payload: unknown;
-}
-
 export default function ShareNearbyPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [sourceType, setSourceType] = useState<"local" | "vault">("local");
   const [localFile, setLocalFile] = useState<File | null>(null);
   const [vaultPassword, setVaultPassword] = useState("");
-  const [shareMode, setShareMode] = useState<"qr" | "p2p">("qr");
   const [shareUrl, setShareUrl] = useState<string>("");
-  const [sessionId, setSessionId] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [errors, setErrors] = useState<string>("");
-  const [connecting, setConnecting] = useState(false);
-  const [connected, setConnected] = useState(false);
-  const [transferProgress, setTransferProgress] = useState<number>(0);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [receivedFile, setReceivedFile] = useState<string | null>(null);
-  const [receivedName, setReceivedName] = useState<string>("");
+  const [passcode, setPasscode] = useState("");
+  const [targetEmail, setTargetEmail] = useState("");
 
   const [friendEmail, setFriendEmail] = useState("");
   const [searchResults, setSearchResults] = useState<{ id: string; name: string; email: string }[]>([]);
   const [selectedFriend, setSelectedFriend] = useState<{ id: string; name: string; email: string } | null>(null);
   const [sendingNotification, setSendingNotification] = useState(false);
   const [notificationSuccess, setNotificationSuccess] = useState("");
-
-  const clientId = useMemo(() => uuidv4(), []);
-  const peerRef = useRef<any>(null);
 
   useEffect(() => {
     async function loadDocuments() {
@@ -59,10 +42,6 @@ export default function ShareNearbyPage() {
       }
     }
     loadDocuments();
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-      peerRef.current?.destroy();
-    };
   }, []);
 
   useEffect(() => {
@@ -84,7 +63,7 @@ export default function ShareNearbyPage() {
 
   const sendCodeViaNotification = async () => {
     if (!friendEmail.trim() && !selectedFriend) return;
-    const tokenOrUrl = shareMode === 'qr' ? shareUrl : sessionId;
+    const tokenOrUrl = shareUrl;
     if (!tokenOrUrl) return;
 
     setSendingNotification(true);
@@ -94,9 +73,7 @@ export default function ShareNearbyPage() {
         targetUserId: selectedFriend?.id,
         email: !selectedFriend ? friendEmail.trim() : undefined,
         title: "File Baru Dibagikan",
-        message: shareMode === 'qr' 
-          ? "Teman Anda membagikan file melalui Temporary Share. Salin kode ini dan masukkan ke 'Terima via Kode'."
-          : "Teman Anda membagikan file via WebRTC Peer-to-Peer. Salin Session ID ini dan masukkan ke 'Terima via Kode'.",
+        message: "Teman Anda membagikan file melalui Share Nearby. Salin tautan ini untuk mengunduh file.",
         type: "SHARE_CODE",
         data: tokenOrUrl,
       });
@@ -113,16 +90,6 @@ export default function ShareNearbyPage() {
       setSendingNotification(false);
     }
   };
-
-  const selectedDoc = useMemo(
-    () => documents.find((doc) => doc.id === selectedId) ?? null,
-    [documents, selectedId],
-  );
-
-  const shareTokenUrl = useMemo(() => {
-    if (!shareUrl) return "";
-    return shareUrl;
-  }, [shareUrl]);
 
   const createQrShare = async () => {
     if (sourceType === "vault" && !selectedId) {
@@ -157,156 +124,21 @@ export default function ShareNearbyPage() {
         vaultPassword,
         expiresInMinutes: 30,
         maxAccess: 5,
+        passcode: passcode || undefined,
+        targetEmail: targetEmail || undefined,
       });
       const url = res.data.data.shareUrl as string;
       setShareUrl(url);
-      setStatus("QR share siap. Scan untuk mengunduh file sementara.");
+      setStatus(
+        targetEmail
+          ? "QR share siap dan email telah dikirim. Scan untuk mengunduh file sementara."
+          : "QR share siap. Scan untuk mengunduh file sementara."
+      );
     } catch (error: unknown) {
       setErrors("Gagal membuat share QR. Pastikan kata sandi benar.");
       setStatus("");
     }
   };
-
-  const createP2PSession = async () => {
-    if (sourceType === "vault" && !selectedId) {
-      setErrors("Pilih dokumen dari brankas");
-      return;
-    }
-    if (sourceType === "local" && !localFile) {
-      setErrors("Pilih file dari perangkat Anda");
-      return;
-    }
-    if (sourceType === "vault" && !vaultPassword) {
-      setErrors("Masukkan kata sandi brankas");
-      return;
-    }
-    setErrors("");
-    setStatus("Membuat sesi WebRTC...");
-    try {
-      const res = await api.post("/webrtc/session", {
-        createdBy: "share-nearby",
-      });
-      const newSessionId = res.data.data.sessionId as string;
-      setSessionId(newSessionId);
-      setStatus("Sesi WebRTC dibuat. Gunakan QR untuk bergabung.");
-      setConnecting(true);
-    } catch (error: unknown) {
-      setErrors("Gagal membuat sesi WebRTC");
-      setStatus("");
-    }
-  };
-
-  const sendFileOverPeer = async () => {
-    if (!peerRef.current) return;
-
-    setStatus("Menunggu koneksi WebRTC...");
-    try {
-      let fileBuffer: ArrayBuffer;
-      let title = "";
-      let mimeType = "application/octet-stream";
-
-      if (sourceType === "local" && localFile) {
-        setStatus("Membaca file lokal...");
-        fileBuffer = await localFile.arrayBuffer();
-        title = localFile.name;
-        mimeType = localFile.type || mimeType;
-      } else if (sourceType === "vault" && selectedDoc) {
-        setStatus("Mengunduh dan mendekripsi file dari server...");
-        const res = await api.post(
-          `/documents/${selectedDoc.id}/download`,
-          { vaultPassword },
-          { responseType: "arraybuffer" },
-        );
-        fileBuffer = res.data as ArrayBuffer;
-        title = selectedDoc.title;
-        mimeType = selectedDoc.mimeType || mimeType;
-      } else {
-        return;
-      }
-
-      setStatus("Mengirim file...");
-      const chunkSize = 64 * 1024;
-      const total = fileBuffer.byteLength;
-      let offset = 0;
-      const meta = JSON.stringify({
-        type: "file-meta",
-        name: title,
-        mimeType: mimeType,
-        size: total,
-      });
-      peerRef.current.send(meta);
-
-      while (offset < total) {
-        const chunk = fileBuffer.slice(
-          offset,
-          Math.min(offset + chunkSize, total),
-        );
-        peerRef.current.send(chunk);
-        offset += chunk.byteLength;
-        setTransferProgress(Math.round((offset / total) * 100));
-        // Small delay to prevent overwhelming the WebRTC buffer for large files
-        await new Promise((resolve) => setTimeout(resolve, 5));
-      }
-      peerRef.current.send(JSON.stringify({ type: "file-end" }));
-      setStatus("File terkirim secara P2P! Tunggu penerima.");
-    } catch (error: unknown) {
-      setErrors("Gagal membaca atau mengirim file lewat WebRTC");
-      setStatus("");
-    }
-  };
-
-  const createPeer = () => {
-    if (!sessionId) return;
-    const peer = new SimplePeer({ initiator: true, trickle: false });
-    peerRef.current = peer;
-
-    peer.on("signal", async (signal: any) => {
-      await api.post(`/webrtc/session/${sessionId}/signal`, {
-        from: clientId,
-        payload: signal,
-      });
-    });
-
-    peer.on("connect", () => {
-      setConnected(true);
-      setStatus("Koneksi WebRTC terhubung. Mengirim file...");
-      void sendFileOverPeer();
-    });
-
-    peer.on("error", (err: Error | string | unknown) => {
-      setErrors(`WebRTC error: ${String(err)}`);
-    });
-
-    peer.on("close", () => {
-      setStatus("Koneksi WebRTC ditutup");
-      setConnected(false);
-    });
-
-    const interval = setInterval(async () => {
-      try {
-        const result = await api.get(
-          `/webrtc/session?sessionId=${sessionId}&clientId=${clientId}`,
-        );
-        const pending = result.data.data.pending as SignalItem[];
-        pending.forEach((item) => {
-          peer.signal(item.payload as any);
-        });
-      } catch {
-        // ignore polling errors
-      }
-    }, 2000);
-    pollingRef.current = interval;
-  };
-
-  useEffect(() => {
-    if (connecting && sessionId && !peerRef.current) {
-      createPeer();
-    }
-  }, [connecting, sessionId]);
-
-  const joinUrl = sessionId
-    ? `${window.location.origin}/webrtc/${sessionId}`
-    : "";
 
   return (
     <div className="space-y-6">
@@ -315,13 +147,12 @@ export default function ShareNearbyPage() {
           <div>
             <h1 className="text-2xl font-semibold text-white">Share Nearby</h1>
             <p className="mt-2 text-sm text-slate-400 max-w-2xl">
-              Bagikan file dengan teman lewat QR code atau langsung menggunakan
-              WebRTC peer-to-peer.
+              Bagikan file dengan teman lewat QR code atau tautan langsung.
             </p>
           </div>
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-4 py-2 text-sm text-slate-300">
             <Wifi className="h-4 w-4 text-blue-400" />
-            Real-time transfer support
+            Temporary Share
           </div>
         </div>
       </div>
@@ -425,39 +256,37 @@ export default function ShareNearbyPage() {
             </div>
           )}
 
-          {!(sourceType === "local" && shareMode === "p2p") && (
+          <Input
+            label="Password Brankas"
+            type="password"
+            required
+            value={vaultPassword}
+            onChange={(e) => setVaultPassword(e.target.value)}
+            placeholder="Masukkan password vault Anda"
+          />
+
+          <div className="pt-4 border-t border-slate-800 space-y-4">
             <Input
-              label="Password Brankas"
-              type="password"
-              required
-              value={vaultPassword}
-              onChange={(e) => setVaultPassword(e.target.value)}
-              placeholder="Masukkan password vault Anda"
+              label="Kode Akses (Opsional)"
+              type="text"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              placeholder="Masukkan PIN untuk membuka dokumen (mis. 1234)"
             />
-          )}
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button
-              variant={shareMode === "qr" ? "default" : "outline"}
-              onClick={() => setShareMode("qr")}
-            >
-              QR code share
-            </Button>
-            <Button
-              variant={shareMode === "p2p" ? "default" : "outline"}
-              onClick={() => setShareMode("p2p")}
-            >
-              WebRTC peer-to-peer
-            </Button>
+            <Input
+              label="Kirim Tautan ke Email (Opsional)"
+              type="email"
+              value={targetEmail}
+              onChange={(e) => setTargetEmail(e.target.value)}
+              placeholder="email@contoh.com"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Penerima akan mendapatkan tautan dokumen (dan kode akses jika diisi) via email.
+            </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {shareMode === "qr" ? (
-              <Button onClick={createQrShare}>Buat QR Tautan</Button>
-            ) : (
-              <Button onClick={createP2PSession}>Mulai WebRTC Share</Button>
-            )}
-          </div>
+          <Button className="w-full" onClick={createQrShare}>Buat Tautan Bagikan</Button>
 
           {status && (
             <div className="rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-200">
@@ -488,7 +317,7 @@ export default function ShareNearbyPage() {
               </div>
             </div>
 
-            {shareUrl && (
+            {shareUrl ? (
               <div className="space-y-4">
                 <div className="rounded-3xl bg-slate-950 p-4 text-sm text-slate-200">
                   <p className="font-medium text-slate-100">Tautan QR share</p>
@@ -503,41 +332,17 @@ export default function ShareNearbyPage() {
                   />
                 </div>
               </div>
-            )}
-
-            {sessionId && (
-              <div className="space-y-4">
-                <div className="rounded-3xl bg-slate-950 p-4 text-sm text-slate-200">
-                  <p className="font-medium text-slate-100">WebRTC join page</p>
-                  <p className="break-all text-xs text-slate-400">{joinUrl}</p>
-                </div>
-                <div className="flex justify-center">
-                  <QRCodeCanvas
-                    value={joinUrl}
-                    size={220}
-                    bgColor="#0f172a"
-                    fgColor="#f8fafc"
-                  />
-                </div>
-                <div className="rounded-3xl bg-slate-950 p-4 text-sm text-slate-200">
-                  <p>
-                    Status koneksi:{" "}
-                    {connected
-                      ? "Terhubung"
-                      : connecting
-                        ? "Membuka sesi"
-                        : "Belum terhubung"}
-                  </p>
-                  <p>Progress transfer: {transferProgress}%</p>
-                </div>
+            ) : (
+              <div className="py-8 text-center text-slate-500">
+                Belum ada tautan yang dibuat
               </div>
             )}
 
-            {(shareUrl || sessionId) && (
+            {shareUrl && (
               <div className="mt-8 border-t border-slate-800 pt-6 space-y-4">
-                <h3 className="text-sm font-medium text-white">Kirim Kode ke Teman</h3>
+                <h3 className="text-sm font-medium text-white">Kirim Tautan ke Teman</h3>
                 <p className="text-xs text-slate-400">
-                  Kirimkan tautan atau kode ini langsung ke notifikasi teman Anda.
+                  Kirimkan tautan ini langsung ke notifikasi teman Anda.
                 </p>
                 <div className="relative">
                   <Input
@@ -602,20 +407,6 @@ export default function ShareNearbyPage() {
                 >
                   Kirim via Notifikasi
                 </Button>
-              </div>
-            )}
-
-            {receivedFile && (
-              <div className="rounded-3xl bg-slate-950 p-4 text-sm text-slate-200">
-                <p className="font-medium text-slate-100">File diterima</p>
-                <p>{receivedName}</p>
-                <a
-                  className="inline-flex items-center rounded-full bg-blue-500 px-4 py-2 text-sm text-white"
-                  href={receivedFile}
-                  download={receivedName}
-                >
-                  Unduh file
-                </a>
               </div>
             )}
           </div>

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getSession } from '@/src/utils/auth';
 import { sendSuccess, sendError } from '@/src/utils/response';
-import { prisma } from '@/src/prisma';
+import { connectDB } from '@/src/lib/mongoose';
+import { SharedAccess } from '@/src/models/SharedAccess';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,36 +11,37 @@ export async function GET(request: NextRequest) {
       return sendError('Unauthorized', null, 401);
     }
 
-    const sharedAccesses = await prisma.sharedAccess.findMany({
-      where: { 
-        userId: session.userId,
-        // Exclude documents that they own themselves (if we want this only for shared BY others)
-        document: { ownerId: { not: session.userId } }
-      },
-      include: {
-        document: {
-          select: {
-            id: true,
-            title: true,
-            mimeType: true,
-            size: true,
-            createdAt: true,
-            owner: { select: { name: true, email: true } }
-          }
-        }
-      },
-      orderBy: { document: { createdAt: 'desc' } }
-    });
+    await connectDB();
 
-    const documents = sharedAccesses.map((access) => ({
-      id: access.document.id,
-      title: access.document.title,
-      mimeType: access.document.mimeType,
-      size: access.document.size.toString(),
-      createdAt: access.document.createdAt,
-      owner: access.document.owner,
-      grantedBy: access.grantedBy
+    const sharedAccesses = await SharedAccess.find({ userId: session.userId })
+      .populate({
+        path: 'documentId',
+        match: { ownerId: { $ne: session.userId }, status: 'ACTIVE' },
+        select: 'id title mimeType size createdAt ownerId',
+        populate: {
+          path: 'ownerId',
+          select: 'name email'
+        }
+      });
+
+    // Filter out access records where the document was excluded by the match condition or deleted
+    const validAccesses = sharedAccesses.filter((access: any) => access.documentId != null);
+
+    const documents = validAccesses.map((access: any) => ({
+      id: access.documentId._id.toString(),
+      title: access.documentId.title,
+      mimeType: access.documentId.mimeType,
+      size: access.documentId.size.toString(),
+      createdAt: access.documentId.createdAt,
+      owner: {
+        name: access.documentId.ownerId.name,
+        email: access.documentId.ownerId.email
+      },
+      grantedBy: access.grantedBy.toString()
     }));
+
+    // Sort by createdAt desc (since we couldn't easily do it at the DB level for nested populations)
+    documents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return sendSuccess(documents);
   } catch (error: unknown) {

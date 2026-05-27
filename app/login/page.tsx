@@ -7,13 +7,16 @@ import { api } from "@/src/lib/api";
 import { Button } from "@/src/components/ui/Button";
 import { Input } from "@/src/components/ui/Input";
 import Link from "next/link";
-import { Shield } from "lucide-react";
+import { Shield, KeyRound } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [is2FA, setIs2FA] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
 
@@ -23,7 +26,19 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await api.post("/auth/login", { email, password });
+      const payload: any = { email, password };
+      if (is2FA) {
+        payload.twoFactorCode = twoFactorCode;
+      }
+
+      const res = await api.post("/auth/login", payload);
+      
+      if (res.data.data.requires2FA) {
+        setIs2FA(true);
+        setIsLoading(false);
+        return;
+      }
+
       const { accessToken, user } = res.data.data;
       setAuth(user, accessToken);
       router.push("/dashboard");
@@ -44,13 +59,19 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8 bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-2xl">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
-            <Shield className="h-6 w-6 text-blue-500" />
+            {is2FA ? (
+              <KeyRound className="h-6 w-6 text-blue-500" />
+            ) : (
+              <Shield className="h-6 w-6 text-blue-500" />
+            )}
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-white">
-            Selamat Datang Kembali
+            {is2FA ? "Autentikasi 2 Langkah" : "Selamat Datang Kembali"}
           </h2>
           <p className="mt-2 text-sm text-slate-400">
-            Masuk untuk mengakses brankas aman Anda
+            {is2FA 
+              ? "Masukkan 6 digit kode dari aplikasi Authenticator Anda" 
+              : "Masuk untuk mengakses brankas aman Anda"}
           </p>
         </div>
 
@@ -61,39 +82,63 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div className="space-y-4">
-            <Input
-              label="Alamat Email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="anda@gmail.com"
-            />
-            <Input
-              label="Login Password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
-          </div>
+          {!is2FA ? (
+            <div className="space-y-4">
+              <Input
+                label="Alamat Email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="anda@gmail.com"
+              />
+              <Input
+                label="Login Password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Input
+                label="Kode 2FA"
+                type="text"
+                required
+                value={twoFactorCode}
+                onChange={(e) => setTwoFactorCode(e.target.value)}
+                placeholder="000000"
+                maxLength={6}
+                className="text-center tracking-[0.5em] text-2xl font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => { setIs2FA(false); setTwoFactorCode(""); }}
+                className="text-sm text-slate-400 hover:text-white"
+              >
+                Kembali ke login email
+              </button>
+            </div>
+          )}
 
           <Button type="submit" className="w-full" isLoading={isLoading}>
-            Masuk
+            {is2FA ? "Verifikasi & Masuk" : "Masuk"}
           </Button>
         </form>
 
-        <p className="text-center text-sm text-slate-400">
-          Belum punya akun?{" "}
-          <Link
-            href="/register"
-            className="font-medium text-blue-500 hover:text-blue-400"
-          >
-            Buat akun baru
-          </Link>
-        </p>
+        {!is2FA && (
+          <p className="text-center text-sm text-slate-400">
+            Belum punya akun?{" "}
+            <Link
+              href="/register"
+              className="font-medium text-blue-500 hover:text-blue-400"
+            >
+              Buat akun baru
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   );

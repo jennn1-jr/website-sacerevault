@@ -1,7 +1,11 @@
 import bcrypt from 'bcryptjs';
-import { prisma } from '../prisma';
 import { generateRSAKeyPair, encryptPrivateKey } from '../crypto';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { User } from '../models/User';
+import { Session } from '../models/Session';
+import { ActivityLog } from '../models/ActivityLog';
+import { connectDB } from '../lib/mongoose';
+import speakeasy from 'speakeasy';
 
 interface RegisterPayload {
   name: string;
@@ -13,16 +17,17 @@ interface RegisterPayload {
 interface LoginPayload {
   email: string;
   password: string;
+  twoFactorCode?: string;
 }
 
 export class AuthService {
   static async register(data: RegisterPayload) {
+    await connectDB();
     const { name, email, password, vaultPassword } = data;
 
     const emailLower = email.trim().toLowerCase();
 
-    const users = await prisma.user.findMany({ select: { email: true } });
-    const existingUser = users.find(u => u.email.trim().toLowerCase() === emailLower);
+    const existingUser = await User.findOne({ email: emailLower });
 
     if (existingUser) {
       throw new Error('Email already registered');
@@ -37,33 +42,29 @@ export class AuthService {
     // Encrypt the private key with the user's vault password (PBKDF2 derived)
     const encryptedPrivKey = encryptPrivateKey(privateKey, vaultPassword);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        publicKey,
-        encryptedPrivKey,
-      }
+    const user = await User.create({
+      name,
+      email: emailLower,
+      passwordHash,
+      publicKey,
+      encryptedPrivKey,
     });
 
     return {
-      id: user.id,
+      id: user._id.toString(),
       name: user.name,
       email: user.email,
       role: user.role
     };
   }
 
-  static async login(data: LoginPayload) {
+  static async login(data: LoginPayload, deviceId?: string) {
+    await connectDB();
     const { email, password } = data;
 
     const emailLower = email.trim().toLowerCase();
 
-    const users = await prisma.user.findMany({
-      select: { id: true, email: true, passwordHash: true, role: true, name: true }
-    });
-    const user = users.find(u => u.email.trim().toLowerCase() === emailLower);
+    const user = await User.findOne({ email: emailLower });
 
     if (!user) {
       throw new Error('Invalid credentials');
@@ -74,35 +75,43 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    const accessToken = generateAccessToken({ userId: user.id, role: user.role, email: user.email });
-    const refreshToken = generateRefreshToken({ userId: user.id });
+    if (user.isTwoFactorEnabled) {
+      if (!data.twoFactorCode) {
+        throw new Error('2FA_REQUIRED');
+      }
+      
+      const isValid = speakeasy.totp.verify({ token: data.twoFactorCode, secret: user.twoFactorSecret, encoding: 'base32' });
+      if (!isValid) {
+        throw new Error('Invalid 2FA code');
+      }
+    }
+
+    const accessToken = generateAccessToken({ userId: user._id.toString(), role: user.role, email: user.email });
+    const refreshToken = generateRefreshToken({ userId: user._id.toString() });
 
     // Store refresh token
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        refreshToken,
-        expiresAt
-      }
+    await Session.create({
+      userId: user._id,
+      deviceId: deviceId || user._id, // Fallback if device ID not strictly enforced yet
+      token: refreshToken,
+      expiresAt
     });
 
-    // Save activity log in Prisma
-    await prisma.activityLog.create({
-      data: {
-        userId: user.id,
-        action: 'LOGIN',
-        status: 'SUCCESS'
-      }
+    // Save activity log
+    await ActivityLog.create({
+      userId: user._id,
+      action: 'LOGIN',
+      status: 'SUCCESS'
     });
 
     return {
       accessToken,
       refreshToken,
       user: {
-        id: user.id,
+        id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role
@@ -111,25 +120,28 @@ export class AuthService {
   }
 
   static async logout(refreshToken: string) {
-    await prisma.session.deleteMany({
-      where: { refreshToken }
-    });
+    await connectDB();
+    await Session.deleteMany({ token: refreshToken });
   }
 
   static async refresh(refreshToken: string) {
-    const session = await prisma.session.findUnique({
-      where: { refreshToken },
-      include: { user: true }
-    });
+    await connectDB();
+    const session = await Session.findOne({ token: refreshToken }).populate('userId');
 
-    if (!session || !session.isValid || session.expiresAt < new Date()) {
+    if (!session || session.expiresAt < new Date()) {
       throw new Error('Invalid or expired refresh token');
     }
 
+    const user: any = session.userId;
+
+    if (!user) {
+       throw new Error('User not found');
+    }
+
     const accessToken = generateAccessToken({ 
-      userId: session.user.id, 
-      role: session.user.role, 
-      email: session.user.email 
+      userId: user._id.toString(), 
+      role: user.role, 
+      email: user.email 
     });
 
     return { accessToken };

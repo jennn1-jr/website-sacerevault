@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
 import { getSession } from '@/src/utils/auth';
 import { sendSuccess, sendError } from '@/src/utils/response';
-import { prisma } from '@/src/prisma';
+import { connectDB } from '@/src/lib/mongoose';
+import { Notification } from '@/src/models/Notification';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = getSession(request);
@@ -13,26 +14,24 @@ export async function PATCH(
       return sendError('Unauthorized', null, 401);
     }
 
-    const { id } = params;
+    const { id } = await context.params;
 
-    const notification = await prisma.notification.findUnique({
-      where: { id },
-    });
+    await connectDB();
+
+    const notification = await Notification.findById(id);
 
     if (!notification) {
       return sendError('Notification not found', null, 404);
     }
 
-    if (notification.userId !== session.userId) {
+    if (notification.userId.toString() !== session.userId) {
       return sendError('Forbidden', null, 403);
     }
 
-    const updatedNotification = await prisma.notification.update({
-      where: { id },
-      data: { isRead: true },
-    });
+    notification.isRead = true;
+    await notification.save();
 
-    return sendSuccess(updatedNotification);
+    return sendSuccess(notification);
   } catch (error: unknown) {
     return sendError('Internal server error', error, 500);
   }

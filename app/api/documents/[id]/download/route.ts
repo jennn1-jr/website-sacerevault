@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/src/utils/auth';
 import { sendError } from '@/src/utils/response';
 import { DocumentService } from '@/src/services/document.service';
+import { ActivityLog } from '@/src/models/ActivityLog';
+import { connectDB } from '@/src/lib/mongoose';
 
 export async function POST(
   request: NextRequest, 
@@ -22,6 +24,17 @@ export async function POST(
     const { id } = await context.params;
 
     const file = await DocumentService.downloadDocument(session.userId, vaultPassword, id);
+
+    await connectDB();
+    await ActivityLog.create({
+      userId: session.userId,
+      action: 'DOWNLOAD',
+      resourceId: id,
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'Unknown',
+      userAgent: request.headers.get('user-agent') || 'Unknown',
+      details: 'Owner downloaded file',
+      status: 'SUCCESS'
+    });
 
     return new NextResponse(new Uint8Array(file.buffer), {
       status: 200,

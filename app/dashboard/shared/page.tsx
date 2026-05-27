@@ -77,7 +77,7 @@ export default function SharedVaultPage() {
       const contentDisposition = res.headers["content-disposition"];
       let filename = activeDoc.title;
       if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
         if (filenameMatch && filenameMatch.length === 2) {
           filename = filenameMatch[1];
         }
@@ -97,7 +97,12 @@ export default function SharedVaultPage() {
         const text = await axiosError.response.data.text();
         try {
           const json = JSON.parse(text);
-          setActionError(json.message);
+          const errMsg = json.message || "Failed to process request";
+          if (errMsg.toLowerCase().includes('invalid vault password') || errMsg.toLowerCase().includes('cryptographic')) {
+            setActionError("Vault Password salah! Masukkan Vault Password yang sama persis dengan yang Anda gunakan saat MENDAFTAR akun.");
+          } else {
+            setActionError(errMsg);
+          }
         } catch {
           setActionError("Failed to process request");
         }
@@ -246,7 +251,7 @@ export default function SharedVaultPage() {
                   </div>
                   <h4 className="text-sm font-semibold text-white mb-2">Kirim ke Teman (Share Nearby)</h4>
                   <p className="text-xs text-blue-200/70 text-center mb-4">
-                    Bagikan file Anda secara instan menggunakan QR Code atau WebRTC Peer-to-Peer.
+                    Bagikan file Anda secara instan menggunakan QR Code.
                   </p>
                   <div className="mt-auto text-xs font-medium text-blue-400 group-hover:text-blue-300 flex items-center">
                     Coba Fitur Ini 
@@ -323,19 +328,17 @@ export default function SharedVaultPage() {
 
             <form onSubmit={handleDownload} className="space-y-4">
               <Input
-                label="Vault Password"
+                label="Vault Password Brankas"
                 type="password"
                 required
-                placeholder="Required to decrypt your private key..."
+                placeholder="Masukkan vault password dari saat Anda daftar"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
               />
-              <p className="text-xs text-slate-500">
-                Your private key will decrypt the AES key that the owner
-                encrypted specifically for you. The file will then be decrypted
-                locally.
-              </p>
+              <div className="mt-1 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <p className="text-xs text-yellow-400 font-medium">⚠️ Ini adalah Vault Password yang sama dengan yang Anda buat saat MENDAFTAR. Bukan password login Anda.</p>
+              </div>
 
               <div className="flex space-x-3 mt-6">
                 <Button

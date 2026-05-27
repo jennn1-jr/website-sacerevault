@@ -45,7 +45,12 @@ export default function UploadPage() {
       const axiosError = error as {
         response?: { data?: { message?: string } };
       };
-      setError(axiosError.response?.data?.message || "Failed to upload file");
+      const errMsg = axiosError.response?.data?.message || "Failed to upload file";
+      if (errMsg.toLowerCase().includes('invalid vault password') || errMsg.toLowerCase().includes('cryptographic')) {
+        setError("Vault Password salah! Masukkan Vault Password yang sama persis dengan yang Anda gunakan saat MENDAFTAR (Register). Bukan password login Anda.");
+      } else {
+        setError(errMsg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -117,19 +122,18 @@ export default function UploadPage() {
           <div className="pt-4 border-t border-slate-800 space-y-4">
             <div>
               <Input
-                label="Vault Password (Wajib)"
+                label="Vault Password Brankas (Wajib)"
                 type="password"
                 required
                 value={vaultPassword}
                 onChange={(e) => setVaultPassword(e.target.value)}
-                placeholder="Enter your vault password"
+                placeholder="Masukkan vault password dari saat Anda daftar"
                 disabled={!file}
                 autoComplete="new-password"
               />
-              <p className="text-xs text-slate-500 mt-2">
-                Use your vault password to decrypt your RSA private key and sign
-                the file.
-              </p>
+              <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <p className="text-xs text-yellow-400 font-medium">⚠️ Penting: Masukkan Vault Password yang sama persis dengan yang Anda gunakan saat MENDAFTAR akun. Ini berbeda dengan password login Anda.</p>
+              </div>
             </div>
             
             <div>

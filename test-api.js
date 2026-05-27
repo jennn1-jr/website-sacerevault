@@ -1,9 +1,18 @@
 const axios = require('axios');
+
 async function run() {
   try {
-    console.log('Fetching users...');
-    const users = await require('@prisma/client').PrismaClient.prototype.$connect.call(new (require('@prisma/client').PrismaClient)());
-    // Not easy to do Next.js api without auth token. Let's just create a notification directly in DB to see if it works!
-  } catch (e) {}
+    console.log('Checking server status...');
+    const response = await axios.get('http://localhost:3000');
+    console.log('Server is running on port 3000! Status code:', response.status);
+  } catch (error) {
+    console.log('Failed to connect to port 3000. Trying port 3001...');
+    try {
+      const response = await axios.get('http://localhost:3001');
+      console.log('Server is running on port 3001! Status code:', response.status);
+    } catch (e) {
+      console.error('Could not connect to the local server:', e.message);
+    }
+  }
 }
 run();

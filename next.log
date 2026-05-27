@@ -1,0 +1,18 @@
+
+> securefull@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://127.0.2.2:3000
+- Environments: .env
+✓ Ready in 339ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3001
+- PID:          83998
+- Dir:          /Users/bintangwiraakbar/Desktop/secarevault/securefull
+- Log:          .next/dev/logs/next-development.log
+
+Run kill 83998 to stop it.
+[?25h

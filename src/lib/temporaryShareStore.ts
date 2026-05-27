@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 const STORE_PATH = path.join(process.cwd(), 'storage', 'temporary-shares.json');
 const KEY_SIZE = 32;
@@ -20,6 +21,7 @@ export interface TemporaryShareEntry {
   encryptedAesKey: string;
   iv: string;
   authTag: string;
+  passcodeHash?: string;
 }
 
 async function ensureStoreFile() {
@@ -73,7 +75,8 @@ export async function createTemporaryShare(
   aesKey: Buffer,
   expiresInMinutes: number = 60,
   maxAccess: number = 10,
-  customToken?: string
+  customToken?: string,
+  passcode?: string
 ) {
   await cleanupExpiredShares();
   
@@ -110,6 +113,11 @@ export async function createTemporaryShare(
     iv: iv.toString('base64'),
     authTag: authTag.toString('base64'),
   };
+
+  if (passcode) {
+    const salt = await bcrypt.genSalt(10);
+    entry.passcodeHash = await bcrypt.hash(passcode, salt);
+  }
 
   entries.push(entry);
   await writeStore(entries);
@@ -176,5 +184,15 @@ export async function getTemporaryShareMetadata(token: string) {
     accessCount: entry.accessCount,
     maxAccess: entry.maxAccess,
     isActive: entry.isActive,
+    requiresPasscode: !!entry.passcodeHash,
   };
+}
+
+export async function verifyTemporarySharePasscode(token: string, passcode: string): Promise<boolean> {
+  const entry = await getTemporaryShare(token);
+  if (!entry || !entry.passcodeHash) {
+    return false; // If no entry or no passcode required, this function shouldn't be relied on for success if passcode wasn't set. 
+    // Actually, if it requires no passcode, it doesn't need verification. Let's return false if passcodeHash is missing but we're trying to verify.
+  }
+  return await bcrypt.compare(passcode, entry.passcodeHash);
 }

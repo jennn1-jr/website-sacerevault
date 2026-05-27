@@ -6,13 +6,13 @@ import { cookies } from 'next/headers';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, twoFactorCode } = body;
 
     if (!email || !password) {
       return sendError('Email and password are required', null, 400);
     }
 
-    const result = await AuthService.login({ email, password });
+    const result = await AuthService.login({ email, password, twoFactorCode });
 
     // Set refresh token in HTTP-only cookie
     const cookieStore = await cookies();
@@ -30,7 +30,10 @@ export async function POST(request: NextRequest) {
     }, 'Login successful');
   } catch (error: unknown) {
     const err = error as Error;
-    if (err.message === 'Invalid credentials') {
+    if (err.message === '2FA_REQUIRED') {
+      return sendSuccess({ requires2FA: true }, '2FA token required', 200);
+    }
+    if (err.message === 'Invalid credentials' || err.message === 'Invalid 2FA code') {
       return sendError(err.message, null, 401);
     }
     return sendError('Internal server error during login', error, 500);

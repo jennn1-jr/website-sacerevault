@@ -14,6 +14,7 @@ interface ShareMetadata {
   accessCount: number;
   maxAccess: number;
   isActive: boolean;
+  requiresPasscode: boolean;
 }
 
 export default function TemporarySharePage() {
@@ -22,15 +23,22 @@ export default function TemporarySharePage() {
   const [metadata, setMetadata] = useState<ShareMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [passcode, setPasscode] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (!token) return;
     const load = async () => {
       try {
-        const res = await api.get(`/temporary-share/${token}?info=1`);
+        const res = await api.get(`/temporary-share/${token}?info=1`, { timeout: 1000 });
         setMetadata(res.data.data);
-      } catch (err) {
-        setError("Tautan tidak valid atau sudah kadaluarsa.");
+      } catch (err: any) {
+        if (err.code === 'ECONNABORTED') {
+          setError("Koneksi ke server terputus (Timeout). Pastikan HP dan Laptop di WiFi yang sama.");
+        } else {
+          setError("Tautan tidak valid atau koneksi bermasalah.");
+        }
       } finally {
         setLoading(false);
       }
@@ -38,8 +46,61 @@ export default function TemporarySharePage() {
     load();
   }, [token]);
 
-  const handleDownload = () => {
-    window.location.href = `/api/temporary-share/${encodeURIComponent(token)}`;
+  const handleDownload = async () => {
+    if (metadata?.requiresPasscode && !passcode) {
+      setActionError("Masukkan kode akses terlebih dahulu.");
+      return;
+    }
+
+    setDownloading(true);
+    setActionError("");
+
+    try {
+      const res = await api.post(
+        `/temporary-share/${encodeURIComponent(token as string)}`,
+        { passcode },
+        { responseType: "blob" }
+      );
+
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+
+      const contentDisposition = res.headers["content-disposition"];
+      let filename = metadata?.originalName || "download";
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
+        if (filenameMatch && filenameMatch.length === 2) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      // Update metadata to reflect new access count if possible, or just let user know
+      setMetadata(prev => prev ? { ...prev, accessCount: prev.accessCount + 1 } : null);
+    } catch (error: unknown) {
+      const axiosError = error as {
+        response?: { data?: Blob };
+      };
+
+      if (axiosError.response?.data instanceof Blob) {
+        try {
+          const text = await axiosError.response.data.text();
+          const json = JSON.parse(text);
+          setActionError(json.message || "Gagal mengunduh file.");
+        } catch {
+          setActionError("Terjadi kesalahan saat mengunduh.");
+        }
+      } else {
+        setActionError("Terjadi kesalahan koneksi.");
+      }
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -51,8 +112,11 @@ export default function TemporarySharePage() {
         </p>
 
         {loading ? (
-          <div className="mt-8 flex items-center gap-2 text-slate-300">
-            <Loader2 className="h-5 w-5 animate-spin" /> Memuat...
+          <div className="mt-8 flex flex-col items-center gap-2 text-slate-300">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" /> Memuat...
+            </div>
+            <span className="text-xs text-slate-500 mt-2">Debug token: {token ? token : 'KOSONG'}</span>
           </div>
         ) : error ? (
           <div className="mt-8 rounded-3xl border border-red-700/40 bg-red-950/20 p-5 text-sm text-red-300">
@@ -73,7 +137,41 @@ export default function TemporarySharePage() {
               </p>
             </div>
 
-            <Button onClick={handleDownload}>Unduh File</Button>
+            {metadata.requiresPasscode && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">
+                  Kode Akses (Passcode)
+                </label>
+                <input
+                  type="password"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  placeholder="Masukkan kode akses..."
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            {actionError && (
+              <div className="rounded-lg bg-red-950/50 p-3 text-sm text-red-400 border border-red-900/50">
+                {actionError}
+              </div>
+            )}
+
+            <Button
+              onClick={handleDownload}
+              disabled={downloading || (metadata.requiresPasscode && !passcode)}
+              className="w-full"
+            >
+              {downloading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Mengunduh...
+                </>
+              ) : (
+                "Unduh File"
+              )}
+            </Button>
           </div>
         ) : null}
       </div>

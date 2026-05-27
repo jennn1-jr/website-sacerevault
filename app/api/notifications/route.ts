@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
 import { getSession } from '@/src/utils/auth';
 import { sendSuccess, sendError } from '@/src/utils/response';
-import { prisma } from '@/src/prisma';
+import { connectDB } from '@/src/lib/mongoose';
+import { Notification } from '@/src/models/Notification';
+import { User } from '@/src/models/User';
 
 // GET: Fetch user's notifications
 export async function GET(request: NextRequest) {
@@ -11,17 +13,23 @@ export async function GET(request: NextRequest) {
       return sendError('Unauthorized', null, 401);
     }
 
-    const notifications = await prisma.notification.findMany({
-      where: {
-        userId: session.userId,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 20, // Limit to recent 20 for now
-    });
+    await connectDB();
 
-    return sendSuccess(notifications);
+    const notifications = await Notification.find({ userId: session.userId })
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    const formattedNotifications = notifications.map(n => ({
+      id: n._id.toString(),
+      title: n.title,
+      message: n.message,
+      type: n.type,
+      data: n.data,
+      isRead: n.isRead,
+      createdAt: n.createdAt
+    }));
+
+    return sendSuccess(formattedNotifications);
   } catch (error: unknown) {
     return sendError('Internal server error', error, 500);
   }
@@ -42,23 +50,23 @@ export async function POST(request: NextRequest) {
       return sendError('Missing required fields', null, 400);
     }
 
+    await connectDB();
+
     let targetId = targetUserId;
     if (!targetId && email) {
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await User.findOne({ email });
       if (!user) {
         return sendError('Pengguna dengan email tersebut tidak ditemukan', null, 404);
       }
-      targetId = user.id;
+      targetId = user._id;
     }
 
-    const notification = await prisma.notification.create({
-      data: {
-        userId: targetId,
-        title,
-        message,
-        type,
-        data: data || null,
-      },
+    const notification = await Notification.create({
+      userId: targetId,
+      title,
+      message,
+      type,
+      data: data || null,
     });
 
     return sendSuccess(notification, 'Notification sent', 201);

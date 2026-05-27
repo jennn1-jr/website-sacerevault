@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getSession } from '@/src/utils/auth';
 import { sendSuccess, sendError } from '@/src/utils/response';
-import { prisma } from '@/src/prisma';
+import { connectDB } from '@/src/lib/mongoose';
+import { User } from '@/src/models/User';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,23 +11,21 @@ export async function GET(request: NextRequest) {
       return sendError('Unauthorized', null, 401);
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true
-        // Never return publicKey or encryptedPrivKey to standard user API responses unless strictly needed for client-side crypto
-      }
-    });
+    await connectDB();
+
+    const user = await User.findById(session.userId).select('id name email role createdAt');
 
     if (!user) {
       return sendError('User not found', null, 404);
     }
 
-    return sendSuccess(user);
+    return sendSuccess({
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt
+    });
   } catch (error: unknown) {
     return sendError('Internal server error', error, 500);
   }

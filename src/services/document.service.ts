@@ -1,6 +1,5 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { prisma } from '../prisma';
 import { 
   generateFileKey, 
   encryptFileData, 
@@ -13,6 +12,11 @@ import {
   decryptPrivateKey
 } from '../crypto';
 import { createTemporaryShare } from '../lib/temporaryShareStore';
+import { User } from '../models/User';
+import { Document } from '../models/Document';
+import { SharedAccess } from '../models/SharedAccess';
+import { ActivityLog } from '../models/ActivityLog';
+import { connectDB } from '../lib/mongoose';
 
 const STORAGE_DIR = path.join(process.cwd(), 'storage');
 
@@ -35,11 +39,14 @@ export class DocumentService {
     userId: string,
     vaultPassword: string,
     file: File,
-    customShareCode?: string
+    customShareCode?: string,
+    docType: 'FILE' | 'NOTE' = 'FILE',
+    folderId?: string
   ) {
     await ensureStorageDir();
+    await connectDB();
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
 
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -72,32 +79,33 @@ export class DocumentService {
     const encryptedFileKey = encryptKeyWithRSA(aesKey, user.publicKey);
 
     // 5. Store metadata in DB
-    const document = await prisma.document.create({
-      data: {
-        title: file.name,
-        originalName: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        size: BigInt(file.size),
-        storagePath,
-        fileHash,
-        signature,
-        ownerId: userId
-      }
+    const document = await Document.create({
+      title: file.name,
+      originalName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+      storagePath,
+      fileHash,
+      signature,
+      type: docType,
+      folderId: folderId || null,
+      status: 'ACTIVE',
+      ownerId: user._id
     });
 
+    const documentIdString = document._id.toString();
+
     // 6. Create initial SharedAccess record for the owner
-    await prisma.sharedAccess.create({
-      data: {
-        documentId: document.id,
-        userId: userId,
-        encryptedFileKey,
-        grantedBy: userId
-      }
+    await SharedAccess.create({
+      documentId: document._id,
+      userId: user._id,
+      encryptedFileKey,
+      grantedBy: user._id
     });
 
     if (customShareCode) {
       await createTemporaryShare(
-        document.id,
+        documentIdString,
         userId,
         document.mimeType,
         document.originalName,
@@ -109,24 +117,32 @@ export class DocumentService {
     }
 
     return {
-      id: document.id,
+      id: documentIdString,
       title: document.title,
       createdAt: document.createdAt
     };
   }
 
   static async downloadDocument(userId: string, vaultPassword: string, documentId: string): Promise<DownloadDocumentResult> {
+    await connectDB();
     // 1. Verify access
-    const access = await prisma.sharedAccess.findUnique({
-      where: { documentId_userId: { documentId, userId } },
-      include: { document: { include: { owner: true } }, user: true }
-    });
+    const access = await SharedAccess.findOne({ documentId, userId })
+      .populate({
+        path: 'documentId',
+        populate: { path: 'ownerId' }
+      })
+      .populate('userId');
 
-    if (!access || access.document.status !== 'ACTIVE') {
+    if (!access) {
       throw new Error('Unauthorized or document not found');
     }
 
-    const { document, user } = access;
+    const document: any = access.documentId;
+    const user: any = access.userId;
+
+    if (!document || document.status !== 'ACTIVE') {
+      throw new Error('Unauthorized or document not found');
+    }
 
     // 2. Decrypt User's Private Key
     let privateKeyPEM: string;
@@ -154,7 +170,7 @@ export class DocumentService {
       throw new Error('TAMPERING DETECTED: File hash mismatch');
     }
 
-    const isValidSignature = verifySignature(currentHash, document.signature, document.owner.publicKey);
+    const isValidSignature = verifySignature(currentHash, document.signature, document.ownerId.publicKey);
     if (!isValidSignature) {
       throw new Error('TAMPERING DETECTED: Invalid digital signature');
     }
@@ -167,10 +183,8 @@ export class DocumentService {
   }
 
   static async downloadDocumentWithAesKey(documentId: string, aesKey: Buffer): Promise<DownloadDocumentResult> {
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
-      include: { owner: true }
-    });
+    await connectDB();
+    const document = await Document.findById(documentId).populate('ownerId');
 
     if (!document || document.status !== 'ACTIVE') {
       throw new Error('Document not found');
@@ -188,7 +202,8 @@ export class DocumentService {
       throw new Error('TAMPERING DETECTED: File hash mismatch');
     }
 
-    const isValidSignature = verifySignature(currentHash, document.signature, document.owner.publicKey);
+    const owner: any = document.ownerId;
+    const isValidSignature = verifySignature(currentHash, document.signature, owner.publicKey);
     if (!isValidSignature) {
       throw new Error('TAMPERING DETECTED: Invalid digital signature');
     }
@@ -206,37 +221,40 @@ export class DocumentService {
     documentId: string, 
     targetUserEmail: string
   ) {
-    const ownerAccess = await prisma.sharedAccess.findUnique({
-      where: { documentId_userId: { documentId, userId: ownerId } },
-      include: { user: true, document: true }
-    });
+    await connectDB();
+    const ownerAccess = await SharedAccess.findOne({ documentId, userId: ownerId })
+      .populate('userId')
+      .populate('documentId');
 
-    if (!ownerAccess || ownerAccess.document.status !== 'ACTIVE') {
+    if (!ownerAccess) {
       throw new Error('You do not have access to share this document');
     }
 
-    // Case-insensitive user lookup to prevent sharing failures due to email case mismatch
-    const users = await prisma.user.findMany({
-      select: { id: true, email: true, publicKey: true }
-    });
-    const targetUser = users.find(u => u.email.trim().toLowerCase() === targetUserEmail.trim().toLowerCase());
+    const document: any = ownerAccess.documentId;
+    if (!document || document.status !== 'ACTIVE') {
+       throw new Error('You do not have access to share this document');
+    }
+
+    const targetUserEmailLower = targetUserEmail.trim().toLowerCase();
+    const targetUser = await User.findOne({ email: targetUserEmailLower });
     
     if (!targetUser) {
       throw new Error('Target user not found');
     }
 
     // Check if already shared
-    const existingShare = await prisma.sharedAccess.findUnique({
-      where: { documentId_userId: { documentId, userId: targetUser.id } }
-    });
+    const existingShare = await SharedAccess.findOne({ documentId, userId: targetUser._id });
+
     if (existingShare) {
       throw new Error('Document already shared with this user');
     }
 
+    const ownerUser: any = ownerAccess.userId;
+
     // 1. Decrypt Owner's Private Key
     let ownerPrivateKeyPEM: string;
     try {
-      ownerPrivateKeyPEM = decryptPrivateKey(ownerAccess.user.encryptedPrivKey, ownerVaultPassword);
+      ownerPrivateKeyPEM = decryptPrivateKey(ownerUser.encryptedPrivKey, ownerVaultPassword);
     } catch (e) {
       throw new Error('Invalid vault password provided for cryptographic operation');
     }
@@ -248,21 +266,21 @@ export class DocumentService {
     const newEncryptedFileKey = encryptKeyWithRSA(aesKey, targetUser.publicKey);
 
     // 4. Save the new access record
-    await prisma.sharedAccess.create({
-      data: {
-        documentId,
-        userId: targetUser.id,
-        encryptedFileKey: newEncryptedFileKey,
-        grantedBy: ownerId
-      }
+    await SharedAccess.create({
+      documentId,
+      userId: targetUser._id,
+      encryptedFileKey: newEncryptedFileKey,
+      grantedBy: ownerId
     });
 
     return { message: 'Document shared successfully' };
   }
 
   static async deleteDocument(userId: string, documentId: string) {
-    const document = await prisma.document.findUnique({ where: { id: documentId } });
-    if (!document || document.ownerId !== userId || document.status !== 'ACTIVE') {
+    await connectDB();
+    const document = await Document.findById(documentId);
+
+    if (!document || document.ownerId.toString() !== userId || document.status !== 'ACTIVE') {
       throw new Error('Document not found or access denied');
     }
 
@@ -272,21 +290,15 @@ export class DocumentService {
       // ignore missing file errors, but still proceed with DB cleanup
     }
 
-    await prisma.$transaction([
-      prisma.sharedAccess.deleteMany({ where: { documentId } }),
-      prisma.document.update({
-        where: { id: documentId },
-        data: { status: 'DELETED' }
-      })
-    ]);
+    await SharedAccess.deleteMany({ documentId });
 
-    await prisma.activityLog.create({
-      data: {
-        userId,
-        action: 'DELETE',
-        resourceId: documentId,
-        status: 'SUCCESS'
-      }
+    await Document.updateOne({ _id: documentId }, { status: 'DELETED' });
+
+    await ActivityLog.create({
+      userId,
+      action: 'DELETE',
+      resourceId: documentId,
+      status: 'SUCCESS'
     });
 
     return { message: 'Document deleted successfully' };
