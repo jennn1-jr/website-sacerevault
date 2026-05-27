@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
     if (err.message === 'Invalid credentials' || err.message === 'Invalid 2FA code') {
       return sendError(err.message, null, 401);
     }
-    return sendError('Internal server error during login', error, 500);
+    
+    console.error("Login Error:", err);
+    return sendError(err.message || 'Internal server error during login', null, 500);
   }
 }
