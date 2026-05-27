@@ -6,6 +6,8 @@ import { User } from '@/src/models/User';
 import { Document as DocumentModel } from '@/src/models/Document';
 import { ActivityLog } from '@/src/models/ActivityLog';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = getSession(request);
