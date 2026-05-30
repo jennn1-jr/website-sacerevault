@@ -1,5 +1,4 @@
-import fs from 'fs/promises';
-import path from 'path';
+import mongoose from 'mongoose';
 import { 
   generateFileKey, 
   encryptFileData, 
@@ -18,14 +17,14 @@ import { SharedAccess } from '../models/SharedAccess';
 import { ActivityLog } from '../models/ActivityLog';
 import { connectDB } from '../lib/mongoose';
 
-const STORAGE_DIR = path.join(process.cwd(), 'storage');
-
-async function ensureStorageDir() {
-  try {
-    await fs.mkdir(STORAGE_DIR, { recursive: true });
-  } catch (err) {
-    // ignore
+let gridFSBucket: mongoose.mongo.GridFSBucket;
+function getGridFSBucket() {
+  if (!gridFSBucket) {
+    gridFSBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db!, {
+      bucketName: 'documents'
+    });
   }
+  return gridFSBucket;
 }
 
 interface DownloadDocumentResult {
@@ -43,7 +42,6 @@ export class DocumentService {
     docType: 'FILE' | 'NOTE' = 'FILE',
     folderId?: string
   ) {
-    await ensureStorageDir();
     await connectDB();
 
     const user = await User.findById(userId);
@@ -71,9 +69,15 @@ export class DocumentService {
     // Prepare final binary format: IV (12 bytes) + Tag (16 bytes) + Encrypted Data
     const finalEncryptedData = Buffer.concat([iv, tag, encryptedBuffer]);
     
-    // Save to disk
-    const storagePath = path.join(STORAGE_DIR, `${Date.now()}-${file.name}.enc`);
-    await fs.writeFile(storagePath, finalEncryptedData);
+    // Save to GridFS
+    const bucket = getGridFSBucket();
+    const uploadStream = bucket.openUploadStream(`${Date.now()}-${file.name}.enc`);
+    uploadStream.end(finalEncryptedData);
+    await new Promise((resolve, reject) => {
+      uploadStream.on('finish', resolve);
+      uploadStream.on('error', reject);
+    });
+    const storagePath = uploadStream.id.toString();
 
     // 4. Encrypt the AES Key with the User's own Public Key so they can decrypt it later
     const encryptedFileKey = encryptKeyWithRSA(aesKey, user.publicKey);
@@ -155,8 +159,16 @@ export class DocumentService {
     // 3. Decrypt the AES Key using User's Private Key
     const aesKey = decryptKeyWithRSA(access.encryptedFileKey, privateKeyPEM);
 
-    // 4. Read encrypted file from disk
-    const fileData = await fs.readFile(document.storagePath);
+    // 4. Read encrypted file from GridFS
+    const bucket = getGridFSBucket();
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(document.storagePath));
+    const chunks: Buffer[] = [];
+    await new Promise((resolve, reject) => {
+      downloadStream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      downloadStream.on('error', reject);
+      downloadStream.on('end', resolve);
+    });
+    const fileData = Buffer.concat(chunks);
     const iv = fileData.subarray(0, 12);
     const tag = fileData.subarray(12, 28);
     const encryptedBuffer = fileData.subarray(28);
@@ -190,7 +202,15 @@ export class DocumentService {
       throw new Error('Document not found');
     }
 
-    const fileData = await fs.readFile(document.storagePath);
+    const bucket = getGridFSBucket();
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(document.storagePath));
+    const chunks: Buffer[] = [];
+    await new Promise((resolve, reject) => {
+      downloadStream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      downloadStream.on('error', reject);
+      downloadStream.on('end', resolve);
+    });
+    const fileData = Buffer.concat(chunks);
     const iv = fileData.subarray(0, 12);
     const tag = fileData.subarray(12, 28);
     const encryptedBuffer = fileData.subarray(28);
@@ -285,7 +305,8 @@ export class DocumentService {
     }
 
     try {
-      await fs.unlink(document.storagePath);
+      const bucket = getGridFSBucket();
+      await bucket.delete(new mongoose.Types.ObjectId(document.storagePath));
     } catch (err) {
       // ignore missing file errors, but still proceed with DB cleanup
     }
