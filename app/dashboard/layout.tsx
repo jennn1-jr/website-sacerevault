@@ -4,7 +4,7 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { FileText, Users, LogOut, UploadCloud, Shield, LayoutDashboard, Edit3, Settings } from 'lucide-react';
+import { FileText, Users, LogOut, UploadCloud, Shield, LayoutDashboard, Edit3, Settings, ImageIcon, Activity } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { NotificationDropdown } from '@/src/components/NotificationDropdown';
 
@@ -32,6 +32,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = [
     { name: 'Brankas Saya', href: '/dashboard', icon: FileText },
     { name: 'Dibagikan dengan Saya', href: '/dashboard/shared', icon: Users },
+    { name: 'Stealth Image', href: '/dashboard/stealth-image', icon: ImageIcon },
+    { name: 'Security Benchmark', href: '/dashboard/benchmark', icon: Activity },
     { name: 'Pengaturan Akun', href: '/dashboard/settings', icon: Settings },
   ];
 
