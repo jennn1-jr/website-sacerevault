@@ -31,7 +31,7 @@ export default function TemporarySharePage() {
     if (!token) return;
     const load = async () => {
       try {
-        const res = await api.get(`/temporary-share/${token}?info=1`, { timeout: 1000 });
+        const res = await api.get(`/temporary-share/${token}?info=1`, { timeout: 60000 });
         setMetadata(res.data.data);
       } catch (err: any) {
         if (err.code === 'ECONNABORTED') {

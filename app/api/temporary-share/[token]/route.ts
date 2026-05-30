@@ -15,6 +15,7 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ token: string }> }
 ) {
+  console.log('>>> TEMPORARY SHARE API HIT:', request.url);
   try {
     const { token } = await context.params;
     const decodedToken = decodeURIComponent(token);
