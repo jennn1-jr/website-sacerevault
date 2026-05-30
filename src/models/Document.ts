@@ -11,6 +11,7 @@ const DocumentSchema = new mongoose.Schema({
   type: { type: String, enum: ['FILE', 'NOTE'], default: 'FILE' },
   folderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder', default: null },
   status: { type: String, enum: ['ACTIVE', 'DELETED'], default: 'ACTIVE' },
+  encryptionMode: { type: String, enum: ['AES-GCM', 'AES-CBC', 'AES-CTR'], default: 'AES-GCM' },
   ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 

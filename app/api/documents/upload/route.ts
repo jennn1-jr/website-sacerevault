@@ -22,6 +22,9 @@ export async function POST(request: NextRequest) {
     const folderId = typeof rawFolderId === 'string' && rawFolderId.trim() !== '' && rawFolderId !== 'null' ? rawFolderId.trim() : undefined;
 
     const docType = formData.get('type') === 'NOTE' ? 'NOTE' : 'FILE';
+    
+    const rawMode = formData.get('encryptionMode');
+    const encryptionMode = typeof rawMode === 'string' && ['AES-GCM', 'AES-CBC', 'AES-CTR'].includes(rawMode) ? rawMode : 'AES-GCM';
 
     if (!file) {
       return sendError('File is required', null, 400);
@@ -30,7 +33,7 @@ export async function POST(request: NextRequest) {
       return sendError('Vault password is required for signing', null, 400);
     }
 
-    const doc = await DocumentService.uploadDocument(session.userId, vaultPassword, file, shareCode, docType, folderId);
+    const doc = await DocumentService.uploadDocument(session.userId, vaultPassword, file, shareCode, docType, folderId, encryptionMode);
     return sendSuccess(doc, 'File uploaded securely', 201);
   } catch (error: unknown) {
     const err = error as Error;

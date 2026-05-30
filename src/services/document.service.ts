@@ -40,7 +40,8 @@ export class DocumentService {
     file: File,
     customShareCode?: string,
     docType: 'FILE' | 'NOTE' = 'FILE',
-    folderId?: string
+    folderId?: string,
+    encryptionMode: string = 'AES-GCM'
   ) {
     await connectDB();
 
@@ -64,10 +65,13 @@ export class DocumentService {
 
     // 3. Generate AES Key and Encrypt File
     const aesKey = generateFileKey();
-    const { encryptedBuffer, iv, tag } = encryptFileData(fileBuffer, aesKey);
+    const { encryptedBuffer, iv, tag } = encryptFileData(fileBuffer, aesKey, encryptionMode);
 
-    // Prepare final binary format: IV (12 bytes) + Tag (16 bytes) + Encrypted Data
-    const finalEncryptedData = Buffer.concat([iv, tag, encryptedBuffer]);
+    // Prepare final binary format
+    const parts = [iv];
+    if (tag) parts.push(tag);
+    parts.push(encryptedBuffer);
+    const finalEncryptedData = Buffer.concat(parts);
     
     // Save to GridFS
     const bucket = getGridFSBucket();
@@ -94,6 +98,7 @@ export class DocumentService {
       type: docType,
       folderId: folderId || null,
       status: 'ACTIVE',
+      encryptionMode,
       ownerId: user._id
     });
 
@@ -169,12 +174,22 @@ export class DocumentService {
       downloadStream.on('end', resolve);
     });
     const fileData = Buffer.concat(chunks);
-    const iv = fileData.subarray(0, 12);
-    const tag = fileData.subarray(12, 28);
-    const encryptedBuffer = fileData.subarray(28);
+    const mode = document.encryptionMode || 'AES-GCM';
+    let iv: Buffer;
+    let tag: Buffer | null = null;
+    let encryptedBuffer: Buffer;
+
+    if (mode === 'AES-GCM') {
+      iv = fileData.subarray(0, 12);
+      tag = fileData.subarray(12, 28);
+      encryptedBuffer = fileData.subarray(28);
+    } else {
+      iv = fileData.subarray(0, 16);
+      encryptedBuffer = fileData.subarray(16);
+    }
 
     // 5. Decrypt the file
-    const originalFileBuffer = decryptFileData(encryptedBuffer, aesKey, iv, tag);
+    const originalFileBuffer = decryptFileData(encryptedBuffer, aesKey, iv, tag, mode);
 
     // 6. Verify Hash and Signature (Anti-tampering)
     const currentHash = hashFile(originalFileBuffer);
@@ -211,11 +226,21 @@ export class DocumentService {
       downloadStream.on('end', resolve);
     });
     const fileData = Buffer.concat(chunks);
-    const iv = fileData.subarray(0, 12);
-    const tag = fileData.subarray(12, 28);
-    const encryptedBuffer = fileData.subarray(28);
+    const mode = document.encryptionMode || 'AES-GCM';
+    let iv: Buffer;
+    let tag: Buffer | null = null;
+    let encryptedBuffer: Buffer;
 
-    const originalFileBuffer = decryptFileData(encryptedBuffer, aesKey, iv, tag);
+    if (mode === 'AES-GCM') {
+      iv = fileData.subarray(0, 12);
+      tag = fileData.subarray(12, 28);
+      encryptedBuffer = fileData.subarray(28);
+    } else {
+      iv = fileData.subarray(0, 16);
+      encryptedBuffer = fileData.subarray(16);
+    }
+
+    const originalFileBuffer = decryptFileData(encryptedBuffer, aesKey, iv, tag, mode);
 
     const currentHash = hashFile(originalFileBuffer);
     if (currentHash !== document.fileHash) {

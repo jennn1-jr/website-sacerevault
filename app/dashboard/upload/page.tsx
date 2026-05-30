@@ -12,6 +12,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [vaultPassword, setVaultPassword] = useState("");
   const [shareCode, setShareCode] = useState("");
+  const [encryptionMode, setEncryptionMode] = useState("AES-GCM");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -33,6 +34,7 @@ export default function UploadPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("vaultPassword", vaultPassword);
+    formData.append("encryptionMode", encryptionMode);
     if (shareCode) {
       formData.append("shareCode", shareCode);
     }
@@ -146,9 +148,23 @@ export default function UploadPage() {
                 disabled={!file}
                 autoComplete="off"
               />
-              <p className="text-xs text-slate-500 mt-2">
+              <p className="text-xs text-slate-500 mt-2 mb-4">
                 Buat kode share khusus agar teman Anda bisa langsung mengakses file ini di menu "Dibagikan dengan Saya" tanpa perlu login.
               </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Algoritma Enkripsi</label>
+              <select
+                value={encryptionMode}
+                onChange={(e) => setEncryptionMode(e.target.value)}
+                disabled={!file}
+                className="w-full h-11 px-4 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 disabled:opacity-50"
+              >
+                <option value="AES-GCM">AES-256-GCM (Direkomendasikan)</option>
+                <option value="AES-CBC">AES-256-CBC</option>
+                <option value="AES-CTR">AES-256-CTR</option>
+              </select>
             </div>
           </div>
 

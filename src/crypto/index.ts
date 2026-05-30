@@ -102,23 +102,43 @@ export function generateFileKey(): Buffer {
 }
 
 /**
- * Encrypts file data using AES-256-GCM.
+ * Encrypts file data using dynamically selected algorithm.
  */
-export function encryptFileData(fileBuffer: Buffer, aesKey: Buffer): { encryptedBuffer: Buffer; iv: Buffer; tag: Buffer } {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, aesKey, iv);
-  const encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return { encryptedBuffer: encrypted, iv, tag };
+export function encryptFileData(fileBuffer: Buffer, aesKey: Buffer, mode: string = 'AES-GCM'): { encryptedBuffer: Buffer; iv: Buffer; tag: Buffer | null } {
+  if (mode === 'AES-CBC') {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', aesKey, iv);
+    const encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
+    return { encryptedBuffer: encrypted, iv, tag: null };
+  } else if (mode === 'AES-CTR') {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-ctr', aesKey, iv);
+    const encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
+    return { encryptedBuffer: encrypted, iv, tag: null };
+  } else {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, aesKey, iv);
+    const encrypted = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return { encryptedBuffer: encrypted, iv, tag };
+  }
 }
 
 /**
- * Decrypts file data using AES-256-GCM.
+ * Decrypts file data using dynamically selected algorithm.
  */
-export function decryptFileData(encryptedBuffer: Buffer, aesKey: Buffer, iv: Buffer, tag: Buffer): Buffer {
-  const decipher = crypto.createDecipheriv(ALGORITHM, aesKey, iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+export function decryptFileData(encryptedBuffer: Buffer, aesKey: Buffer, iv: Buffer, tag: Buffer | null, mode: string = 'AES-GCM'): Buffer {
+  if (mode === 'AES-CBC') {
+    const decipher = crypto.createDecipheriv('aes-256-cbc', aesKey, iv);
+    return Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+  } else if (mode === 'AES-CTR') {
+    const decipher = crypto.createDecipheriv('aes-256-ctr', aesKey, iv);
+    return Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+  } else {
+    const decipher = crypto.createDecipheriv(ALGORITHM, aesKey, iv);
+    if (tag) decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+  }
 }
 
 /**
