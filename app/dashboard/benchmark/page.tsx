@@ -116,7 +116,7 @@ export default function BenchmarkPage() {
           Security Benchmark
         </h2>
         <p className="text-slate-400 max-w-3xl">
-          Alat pengujian komparatif untuk mengukur kecepatan eksekusi algoritma enkripsi secara langsung di browser Anda (Client-Side Encryption) menggunakan WebCrypto API. Bandingkan performa AES-CBC melawan AES-CTR.
+          Uji komparasi kecepatan enkripsi AES-CBC melawan AES-CTR secara real-time di sisi klien.
         </p>
       </div>
 

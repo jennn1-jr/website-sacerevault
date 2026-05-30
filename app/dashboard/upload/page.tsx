@@ -12,7 +12,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [vaultPassword, setVaultPassword] = useState("");
   const [shareCode, setShareCode] = useState("");
-  const [encryptionMode, setEncryptionMode] = useState("AES-GCM");
+  const [encryptionMode, setEncryptionMode] = useState("AES-CBC");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -161,9 +161,8 @@ export default function UploadPage() {
                 disabled={!file}
                 className="w-full h-11 px-4 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 disabled:opacity-50"
               >
-                <option value="AES-GCM">AES-256-GCM (Direkomendasikan)</option>
-                <option value="AES-CBC">AES-256-CBC</option>
-                <option value="AES-CTR">AES-256-CTR</option>
+                <option value="AES-CBC">AES-256-CBC (Mode Cipher Block Chaining)</option>
+                <option value="AES-CTR">AES-256-CTR (Mode Counter)</option>
               </select>
             </div>
           </div>
