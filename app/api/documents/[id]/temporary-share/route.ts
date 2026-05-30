@@ -3,7 +3,7 @@ import { getSession } from '@/src/utils/auth';
 import { sendSuccess, sendError } from '@/src/utils/response';
 import { connectDB } from '@/src/lib/mongoose';
 import { SharedAccess } from '@/src/models/SharedAccess';
-import { ActivityLog } from '@/src/models/ActivityLog';
+import { ActivityService } from '@/src/services/activity.service';
 import { decryptPrivateKey, decryptKeyWithRSA } from '@/src/crypto';
 import { createTemporaryShare } from '@/src/lib/temporaryShareStore';
 import { sendShareEmail } from '@/src/utils/mailer';
@@ -94,7 +94,7 @@ export async function POST(
     }
 
     // Log this activity
-    await ActivityLog.create({
+    await ActivityService.logActivity({
       userId: session.userId,
       action: 'SHARE_LINK_CREATED',
       resourceId: id,

@@ -3,7 +3,7 @@ import { generateRSAKeyPair, encryptPrivateKey } from '../crypto';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 import { User } from '../models/User';
 import { Session } from '../models/Session';
-import { ActivityLog } from '../models/ActivityLog';
+import { ActivityService } from './activity.service';
 import { connectDB } from '../lib/mongoose';
 import speakeasy from 'speakeasy';
 
@@ -101,7 +101,7 @@ export class AuthService {
     });
 
     // Save activity log
-    await ActivityLog.create({
+    await ActivityService.logActivity({
       userId: user._id,
       action: 'LOGIN',
       status: 'SUCCESS'

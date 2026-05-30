@@ -14,7 +14,7 @@ import { createTemporaryShare } from '../lib/temporaryShareStore';
 import { User } from '../models/User';
 import { Document } from '../models/Document';
 import { SharedAccess } from '../models/SharedAccess';
-import { ActivityLog } from '../models/ActivityLog';
+import { ActivityService } from './activity.service';
 import { connectDB } from '../lib/mongoose';
 
 let gridFSBucket: mongoose.mongo.GridFSBucket;
@@ -315,7 +315,7 @@ export class DocumentService {
 
     await Document.updateOne({ _id: documentId }, { status: 'DELETED' });
 
-    await ActivityLog.create({
+    await ActivityService.logActivity({
       userId,
       action: 'DELETE',
       resourceId: documentId,

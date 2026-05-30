@@ -7,7 +7,9 @@ const ActivityLogSchema = new mongoose.Schema({
   ipAddress: { type: String },
   userAgent: { type: String },
   details: { type: String },
-  status: { type: String, required: true }
+  status: { type: String, required: true },
+  previousHash: { type: String, default: null },
+  currentHash: { type: String, required: true }
 }, { timestamps: true });
 
 export const ActivityLog = mongoose.models.ActivityLog || mongoose.model('ActivityLog', ActivityLogSchema);

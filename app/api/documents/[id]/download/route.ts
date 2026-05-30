@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/src/utils/auth';
 import { sendError } from '@/src/utils/response';
 import { DocumentService } from '@/src/services/document.service';
-import { ActivityLog } from '@/src/models/ActivityLog';
+import { ActivityService } from '@/src/services/activity.service';
 import { connectDB } from '@/src/lib/mongoose';
 
 export async function POST(
@@ -26,7 +26,7 @@ export async function POST(
     const file = await DocumentService.downloadDocument(session.userId, vaultPassword, id);
 
     await connectDB();
-    await ActivityLog.create({
+    await ActivityService.logActivity({
       userId: session.userId,
       action: 'DOWNLOAD',
       resourceId: id,

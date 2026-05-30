@@ -8,7 +8,7 @@ import {
   verifyTemporarySharePasscode
 } from '@/src/lib/temporaryShareStore';
 import { DocumentService } from '@/src/services/document.service';
-import { ActivityLog } from '@/src/models/ActivityLog';
+import { ActivityService } from '@/src/services/activity.service';
 import { connectDB } from '@/src/lib/mongoose';
 
 export async function GET(
@@ -47,7 +47,7 @@ export async function GET(
 
     await incrementTemporaryShareAccess(decodedToken);
     await connectDB();
-    await ActivityLog.create({
+    await ActivityService.logActivity({
       action: 'DOWNLOAD_GUEST_LINK',
       resourceId: entry.documentId,
       ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'Unknown',
@@ -103,7 +103,7 @@ export async function POST(
 
     await incrementTemporaryShareAccess(decodedToken);
     await connectDB();
-    await ActivityLog.create({
+    await ActivityService.logActivity({
       action: 'DOWNLOAD_GUEST_PASSCODE',
       resourceId: entry.documentId,
       ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'Unknown',
