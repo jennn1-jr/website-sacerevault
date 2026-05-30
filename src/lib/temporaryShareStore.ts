@@ -1,9 +1,8 @@
-import fs from 'fs/promises';
-import path from 'path';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { TemporaryShare } from '../models/TemporaryShare';
+import { connectDB } from './mongoose';
 
-const STORE_PATH = path.join(process.cwd(), 'storage', 'temporary-shares.json');
 const KEY_SIZE = 32;
 const IV_SIZE = 12;
 
@@ -24,47 +23,27 @@ export interface TemporaryShareEntry {
   passcodeHash?: string;
 }
 
-async function ensureStoreFile() {
-  const dir = path.dirname(STORE_PATH);
-  await fs.mkdir(dir, { recursive: true });
-  try {
-    await fs.access(STORE_PATH);
-  } catch {
-    await fs.writeFile(STORE_PATH, JSON.stringify([]), 'utf8');
-  }
-}
-
-async function readStore(): Promise<TemporaryShareEntry[]> {
-  await ensureStoreFile();
-  const file = await fs.readFile(STORE_PATH, 'utf8');
-  try {
-    return JSON.parse(file) as TemporaryShareEntry[];
-  } catch {
-    return [];
-  }
-}
-
-async function writeStore(entries: TemporaryShareEntry[]) {
-  await ensureStoreFile();
-  await fs.writeFile(STORE_PATH, JSON.stringify(entries, null, 2), 'utf8');
-}
-
 function deriveKeyFromToken(token: string): Buffer {
   return crypto.createHash('sha256').update(token).digest().slice(0, KEY_SIZE);
 }
 
 export async function cleanupExpiredShares() {
-  const entries = await readStore();
+  await connectDB();
   const now = new Date();
-  const activeEntries = entries.filter((entry) => {
-    if (!entry.isActive) return false;
-    const expiresAt = new Date(entry.expiresAt);
-    return expiresAt > now && entry.accessCount < entry.maxAccess;
-  });
-  if (activeEntries.length !== entries.length) {
-    await writeStore(activeEntries);
-  }
-  return activeEntries;
+  
+  await TemporaryShare.updateMany(
+    { 
+      isActive: true, 
+      $or: [
+        { expiresAt: { $lte: now } },
+        { $expr: { $gte: ['$accessCount', '$maxAccess'] } }
+      ]
+    },
+    { isActive: false }
+  );
+  
+  const activeDocs = await TemporaryShare.find({ isActive: true });
+  return activeDocs.map(doc => doc.toObject());
 }
 
 export async function createTemporaryShare(
@@ -78,13 +57,12 @@ export async function createTemporaryShare(
   customToken?: string,
   passcode?: string
 ) {
+  await connectDB();
   await cleanupExpiredShares();
-  
-  const entries = await readStore();
 
   let token = customToken;
   if (token) {
-    const existing = entries.find(e => e.token === token && e.isActive);
+    const existing = await TemporaryShare.findOne({ token, isActive: true });
     if (existing) {
       throw new Error('Kode share sudah digunakan. Silakan pilih kode lain.');
     }
@@ -98,36 +76,42 @@ export async function createTemporaryShare(
   const encryptedKey = Buffer.concat([cipher.update(aesKey), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
-  const entry: TemporaryShareEntry = {
+  let passcodeHash = null;
+  if (passcode) {
+    const salt = await bcrypt.genSalt(10);
+    passcodeHash = await bcrypt.hash(passcode, salt);
+  }
+
+  const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+
+  const entry = await TemporaryShare.create({
     token,
     documentId,
     ownerId,
     mimeType,
     originalName,
-    expiresAt: new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString(),
-    createdAt: new Date().toISOString(),
+    expiresAt,
     maxAccess,
     accessCount: 0,
     isActive: true,
     encryptedAesKey: encryptedKey.toString('base64'),
     iv: iv.toString('base64'),
     authTag: authTag.toString('base64'),
-  };
+    passcodeHash
+  });
 
-  if (passcode) {
-    const salt = await bcrypt.genSalt(10);
-    entry.passcodeHash = await bcrypt.hash(passcode, salt);
-  }
-
-  entries.push(entry);
-  await writeStore(entries);
-  return entry;
+  return {
+    ...entry.toObject(),
+    expiresAt: expiresAt.toISOString(),
+    createdAt: (entry as any).createdAt?.toISOString() || new Date().toISOString()
+  } as TemporaryShareEntry;
 }
 
 export async function getTemporaryShare(token: string) {
+  await connectDB();
   await cleanupExpiredShares();
-  const entries = await readStore();
-  const entry = entries.find((item) => item.token === token && item.isActive);
+  const entry = await TemporaryShare.findOne({ token, isActive: true });
+  
   if (!entry) {
     return null;
   }
@@ -135,11 +119,15 @@ export async function getTemporaryShare(token: string) {
   const expiresAt = new Date(entry.expiresAt);
   if (expiresAt <= new Date() || entry.accessCount >= entry.maxAccess) {
     entry.isActive = false;
-    await writeStore(entries);
+    await entry.save();
     return null;
   }
 
-  return entry;
+  return {
+    ...entry.toObject(),
+    expiresAt: expiresAt.toISOString(),
+    createdAt: (entry as any).createdAt?.toISOString() || new Date().toISOString()
+  } as TemporaryShareEntry;
 }
 
 export async function decryptTemporaryShareKey(token: string): Promise<Buffer | null> {
@@ -158,8 +146,8 @@ export async function decryptTemporaryShareKey(token: string): Promise<Buffer | 
 }
 
 export async function incrementTemporaryShareAccess(token: string) {
-  const entries = await readStore();
-  const entry = entries.find((item) => item.token === token);
+  await connectDB();
+  const entry = await TemporaryShare.findOne({ token });
   if (!entry) {
     return false;
   }
@@ -169,7 +157,7 @@ export async function incrementTemporaryShareAccess(token: string) {
     entry.isActive = false;
   }
 
-  await writeStore(entries);
+  await entry.save();
   return true;
 }
 
@@ -191,8 +179,7 @@ export async function getTemporaryShareMetadata(token: string) {
 export async function verifyTemporarySharePasscode(token: string, passcode: string): Promise<boolean> {
   const entry = await getTemporaryShare(token);
   if (!entry || !entry.passcodeHash) {
-    return false; // If no entry or no passcode required, this function shouldn't be relied on for success if passcode wasn't set. 
-    // Actually, if it requires no passcode, it doesn't need verification. Let's return false if passcodeHash is missing but we're trying to verify.
+    return false; 
   }
   return await bcrypt.compare(passcode, entry.passcodeHash);
 }
