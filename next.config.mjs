@@ -5,6 +5,11 @@ const nextConfig = {
     appIsrStatus: false,
     buildActivity: false,
   },
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
 };
 
 export default nextConfig;
