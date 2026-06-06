@@ -33,7 +33,7 @@ export async function sendShareEmail(to: string, shareUrl: string, passcode?: st
 
     const docNameText = documentName ? `"${documentName}"` : "sebuah dokumen";
     
-    let emailText = `Halo,\n\nSeseorang telah membagikan ${docNameText} kepada Anda secara aman melalui SecureVault.\n\n`;
+    let emailText = `Halo,\n\nSeseorang telah membagikan ${docNameText} kepada Anda secara aman melalui lockArchive.\n\n`;
     emailText += `🔗 Buka tautan berikut untuk mengunduh dokumen:\n${shareUrl}\n\n`;
     
     if (passcode) {
@@ -41,11 +41,11 @@ export async function sendShareEmail(to: string, shareUrl: string, passcode?: st
       emailText += `(Masukkan kode ini saat membuka tautan di atas)\n\n`;
     }
 
-    emailText += `Tautan ini bersifat sementara dan mungkin memiliki batas waktu atau batas akses.\n\nTerima kasih,\nTim SecureVault`;
+    emailText += `Tautan ini bersifat sementara dan mungkin memiliki batas waktu atau batas akses.\n\nTerima kasih,\nTim lockArchive`;
 
     let htmlText = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-        <h2 style="color: #0f172a;">SecureVault Share</h2>
+        <h2 style="color: #0f172a;">lockArchive Share</h2>
         <p>Halo,</p>
         <p>Seseorang telah membagikan <strong>${docNameText}</strong> kepada Anda secara aman.</p>
         <div style="margin: 20px 0; padding: 15px; background-color: #f8fafc; border-radius: 6px;">
@@ -72,9 +72,9 @@ export async function sendShareEmail(to: string, shareUrl: string, passcode?: st
     `;
 
     const info = await transporter.sendMail({
-      from: `"SecureVault" <${process.env.SMTP_FROM || 'noreply@securevault.local'}>`,
+      from: `"lockArchive" <${process.env.SMTP_FROM || 'noreply@lockarchive.local'}>`,
       to,
-      subject: `[SecureVault] Dokumen Dibagikan: ${documentName || 'File'}`,
+      subject: `[lockArchive] Dokumen Dibagikan: ${documentName || 'File'}`,
       text: emailText,
       html: htmlText,
     });

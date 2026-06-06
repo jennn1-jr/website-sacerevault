@@ -26,7 +26,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ user: null, accessToken: null, isAuthenticated: false }),
     }),
     {
-      name: 'securevault-auth',
+      name: 'lockarchive-auth',
     }
   )
 );

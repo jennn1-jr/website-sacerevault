@@ -1,6 +1,6 @@
-# 🗄️ SecureVault - MongoDB Atlas Import Guide
+# 🗄️ lockArchive - MongoDB Atlas Import Guide
 
-## Database: `securevault`
+## Database: `lockarchive`
 
 Folder ini berisi file JSON untuk semua koleksi (collection) yang perlu diimport ke MongoDB Atlas.
 
@@ -28,8 +28,8 @@ Folder ini berisi file JSON untuk semua koleksi (collection) yang perlu diimport
 1. Buka **[MongoDB Atlas](https://cloud.mongodb.com/)** dan login
 2. Pilih cluster **sacarevault** di bagian kiri
 3. Klik **"Browse Collections"**
-4. Jika database `securevault` belum ada, klik **"Create Database"**
-   - Database name: `securevault`
+4. Jika database `lockarchive` belum ada, klik **"Create Database"**
+   - Database name: `lockarchive`
    - Collection name: `users`
 5. Untuk setiap file JSON di folder ini:
    - Klik nama collection (atau buat baru jika belum ada)
@@ -46,28 +46,28 @@ Jika Anda memiliki MongoDB Tools terinstal, jalankan perintah berikut:
 # Contoh: mongodb+srv://user:password@sacarevault.evcpuiy.mongodb.net/
 
 mongoimport --uri="<CONNECTION_STRING>" \
-  --db=securevault --collection=users --file=users.json --jsonArray
+  --db=lockarchive --collection=users --file=users.json --jsonArray
 
 mongoimport --uri="<CONNECTION_STRING>" \
-  --db=securevault --collection=sessions --file=sessions.json --jsonArray
+  --db=lockarchive --collection=sessions --file=sessions.json --jsonArray
 
 mongoimport --uri="<CONNECTION_STRING>" \
-  --db=securevault --collection=activitylogs --file=activitylogs.json --jsonArray
+  --db=lockarchive --collection=activitylogs --file=activitylogs.json --jsonArray
 
 mongoimport --uri="<CONNECTION_STRING>" \
-  --db=securevault --collection=documents --file=documents.json --jsonArray
+  --db=lockarchive --collection=documents --file=documents.json --jsonArray
 
 mongoimport --uri="<CONNECTION_STRING>" \
-  --db=securevault --collection=sharedaccesses --file=sharedaccesses.json --jsonArray
+  --db=lockarchive --collection=sharedaccesses --file=sharedaccesses.json --jsonArray
 
 mongoimport --uri="<CONNECTION_STRING>" \
-  --db=securevault --collection=notifications --file=notifications.json --jsonArray
+  --db=lockarchive --collection=notifications --file=notifications.json --jsonArray
 
 mongoimport --uri="<CONNECTION_STRING>" \
-  --db=securevault --collection=devices --file=devices.json --jsonArray
+  --db=lockarchive --collection=devices --file=devices.json --jsonArray
 
 mongoimport --uri="<CONNECTION_STRING>" \
-  --db=securevault --collection=temporaryshares --file=temporaryshares.json --jsonArray
+  --db=lockarchive --collection=temporaryshares --file=temporaryshares.json --jsonArray
 ```
 
 ---

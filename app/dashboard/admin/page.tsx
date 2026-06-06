@@ -56,7 +56,7 @@ export default function AdminDashboardPage() {
           System Administration
         </h2>
         <p className="text-sm text-slate-400 mt-1">
-          Monitor SecureVault storage and user activity
+          Monitor lockArchive storage and user activity
         </p>
       </div>
 

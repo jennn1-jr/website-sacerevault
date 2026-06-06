@@ -14,7 +14,7 @@ export default function Home() {
         </div>
 
         <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-6">
-          SecureVault{" "}
+          lockArchive{" "}
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
             Enterprise
           </span>

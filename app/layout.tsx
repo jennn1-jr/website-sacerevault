@@ -6,7 +6,7 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SecureVault | Enterprise Document Security",
+  title: "lockArchive | Enterprise Document Security",
   description: "Secure Document Archiving System with Hybrid Cryptography",
 };
 

@@ -54,7 +54,7 @@ export default function RegisterPage() {
             Buat Akun Baru
           </h2>
           <p className="mt-2 text-sm text-slate-400">
-            Bergabung dengan SecureVault untuk mengenkripsi file Anda
+            Bergabung dengan lockArchive untuk mengenkripsi file Anda
           </p>
         </div>
 

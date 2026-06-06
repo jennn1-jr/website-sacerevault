@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 async function main() {
   console.log("=========================================");
-  console.log("🔍 MENGECEK KONEKSI DATABASE SECUREVAULT");
+  console.log("🔍 MENGECEK KONEKSI DATABASE LOCKARCHIVE");
   console.log("=========================================");
   console.log("DATABASE_URL:", process.env.DATABASE_URL || "Belum diset di .env");
 

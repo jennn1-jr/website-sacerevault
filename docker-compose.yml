@@ -3,12 +3,12 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: securevault-db
+    container_name: lockarchive-db
     restart: always
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: securepassword123
-      POSTGRES_DB: securevault
+      POSTGRES_DB: lockarchive
     ports:
       - '5432:5432'
     volumes:

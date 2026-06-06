@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Generate a new secret
-    const secret = speakeasy.generateSecret({ name: `SecureVault (${user.email})` });
+    const secret = speakeasy.generateSecret({ name: `lockArchive (${user.email})` });
     
     // Generate QR Code data URL
     const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url || '');

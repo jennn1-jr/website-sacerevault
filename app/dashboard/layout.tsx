@@ -47,7 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
         <div className="h-16 flex items-center px-6 border-b border-slate-800">
           <Shield className="h-6 w-6 text-blue-500 mr-2" />
-          <span className="text-xl font-bold text-white">SecureVault</span>
+          <span className="text-xl font-bold text-white">lockArchive</span>
         </div>
         
         <div className="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
